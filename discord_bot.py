@@ -29,7 +29,7 @@ class DiscordBot:
         intents.message_content = True
         self.bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
-    def discord_bot_start(self, token):
+    def discord_bot_start(self):
         # Create the help command
         @self.bot.command(name="help")
         async def discord_help(ctx):
