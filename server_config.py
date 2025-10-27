@@ -45,12 +45,12 @@ class ServerConfig:
         self.world_loc = cfg.get("world_location")
         self.backup_loc = cfg.get("backup_location")
         self.backup_dur = cfg.get("backup_duration")
-        self.restart_time = cfg.get("restart_time")  # “HH:MM” string
+        self.restart_time = cfg.get("restart_time")
         self.discord_bot = cfg.get("discord_bot")
         self.bot_token = cfg.get("bot_token")
         self.admins = cfg.get("admin_list")
 
-        # Validate the config file settings.
+        # Validate the config file settings
         errors = self.validate()
         if errors:
             print("bedrock-server:\n  " + "\n  ".join(errors))
