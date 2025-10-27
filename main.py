@@ -28,14 +28,14 @@ bot_thread.start()
 
 try:
     while True:
-        cmd = input("Type 'stop' to shut down the bot:\n> ")
+        cmd = input("Type 'stop' to shut down the bot:\n")
         if cmd.strip().lower() == "stop":
-            # To shut down properly, schedule the close coroutine on the event loop
-            loop = client.bot.loop
-            asyncio.run_coroutine_threadsafe(client.bot.close(), loop)
+            print("bedrock-server: shutting down discord bot")
+            client.discord_bot_stop()
             break
 except KeyboardInterrupt:
-    print("bedrock-server: received keyboard interrupt")
+    print("bedrock-server: received keyboard interrupt, shutting down discord bot")
+    client.discord_bot_stop()
 
 # Wait for the bot thread to finish cleanly before exiting
 bot_thread.join()

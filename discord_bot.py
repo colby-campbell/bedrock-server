@@ -8,6 +8,7 @@ DiscordBot module for managing a Minecraft Bedrock server via Discord commands.
 '''
 
 
+## Command to check if the user has admin privileges
 def is_admin(admin_ids):
     async def predicate(ctx):
         # Check if the user is an admin or the bot owner
@@ -119,3 +120,7 @@ class DiscordBot:
 
         # Start the discord bot
         self.bot.run(token)
+
+    def discord_bot_stop(self):
+        # To shut down properly, schedule the close coroutine on the event loop
+        asyncio.run_coroutine_threadsafe(self.bot.close(), self.bot.loop)
