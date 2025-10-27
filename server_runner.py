@@ -5,6 +5,12 @@ import queue
 
 class ServerRunner:
     def __init__(self, config):
+        """
+        Initialize ServerRunner with a configuration object.
+
+        Args:
+            config: ServerConfig object containing executable location and shutdown timeout.
+        """
         self.config = config
         self.executable_loc = config.executable_loc
         self.shutdown_timeout = config.shutdown_timeout
@@ -13,8 +19,13 @@ class ServerRunner:
         self._stdout_thread = None
     
 
-    # Method to start the server process
     def start(self):
+        """
+        Start the Minecraft Bedrock server subprocess.
+
+        Raises:
+            RuntimeError: If the server is already running.
+        """
         if self.process:
             raise RuntimeError("Server is already running")
         
@@ -33,14 +44,22 @@ class ServerRunner:
         self._stdout_thread.start()
 
 
-    # Method to check if the server is running
     def is_running(self):
+        """
+        Check if the server process is currently running.
+
+        Returns:
+            bool: True if running, False otherwise.
+        """
         # Verify self.process exists and the process is still active (self.process.poll() returns None while running)
         return self.process and self.process.poll() is None
 
 
-    # Private method to read stdout in a separate thread
     def _read_stdout(self):
+        """
+        Internal method run in a separate thread to continuously read stdout
+        lines from the server process and enqueue them for processing.
+        """
         for line in self.process.stdout:
             self.stdout_queue.put(line)
         self.process.stdout.close()
@@ -48,6 +67,15 @@ class ServerRunner:
 
     # Method to send a command to the server
     def send_command(self, command):
+        """
+        Send a command string to the server's stdin.
+
+        Args:
+            command (str): Command string to send to the server.
+
+        Raises:
+            RuntimeError: If the server is not currently running.
+        """
         if not self.is_running():
             raise RuntimeError("Server is not running")
         # Send a command to the server's stdin and immediately flush it
@@ -57,6 +85,16 @@ class ServerRunner:
 
     # Method to get a line of output from the server
     def get_output_line(self, timeout=None):
+        """
+        Retrieve the next line of output from the server stdout queue.
+
+        Args:
+            timeout (float or None): How long to wait for a line. None waits indefinitely, 
+            0 for a non-blocking call.
+
+        Returns:
+            str or None: The next line from stdout, or None if the queue is empty.
+        """
         try:
             return self.stdout_queue.get(timeout=timeout)
         except queue.Empty:
@@ -65,6 +103,14 @@ class ServerRunner:
     
     # Method to stop the server process
     def stop(self):
+        """
+        Gracefully stop the server by sending a stop command and waiting for
+        the process to exit within the configured shutdown timeout. Forces kill
+        if unable to stop gracefully.
+
+        Raises:
+            RuntimeError: If the server is not currently running.
+        """
         if not self.is_running():
             raise RuntimeError("Server is not running")
         # Attempt to close the process properly
