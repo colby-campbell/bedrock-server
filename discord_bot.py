@@ -20,8 +20,9 @@ def is_admin(admin_ids):
 
 
 class DiscordBot:
-    def __init__(self, admin_list, server, automation):
-        self.admin_list = admin_list
+    def __init__(self, config, server, automation):
+        self.admin_list = config.admins
+        self.token = config.bot_token
         self.server = server
         self.automation = automation
         intents = discord.Intents.default()
@@ -119,7 +120,7 @@ class DiscordBot:
                 await ctx.send("You do not have the permissions to use this command.")
 
         # Start the discord bot
-        self.bot.run(token)
+        self.bot.run(self.token)
 
     def discord_bot_stop(self):
         # To shut down properly, schedule the close coroutine on the event loop
