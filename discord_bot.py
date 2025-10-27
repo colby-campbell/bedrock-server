@@ -9,8 +9,11 @@ DiscordBot module for managing a Minecraft Bedrock server via Discord commands.
 
 
 def is_admin(admin_ids):
-    def predicate(ctx):
-        return ctx.author.id in admin_ids
+    async def predicate(ctx):
+        # Check if the user is an admin or the bot owner
+        is_owner = await commands.is_owner().predicate(ctx)
+        is_admin = ctx.author.id in admin_ids
+        return is_admin or is_owner
 
     return commands.check(predicate)
 
@@ -69,45 +72,45 @@ class DiscordBot:
         @commands.is_owner()
         @self.bot.command(name="god")
         async def discord_god(ctx):
-            pass
+            print("God command invoked")
 
         @is_admin(self.admin_list)
         @self.bot.command(name="stop")
         async def discord_stop(ctx):
-            pass
+            print("Stop command invoked")
 
         @is_admin(self.admin_list)
         @self.bot.command(name="start")
         async def discord_start(ctx):
-            pass
+            print("Start command invoked")
 
         @is_admin(self.admin_list)
         @self.bot.command(name="restart")
         async def discord_restart(ctx):
-            pass
+            print("Restart command invoked")
 
         @is_admin(self.admin_list)
         @self.bot.command(name="save")
         async def discord_save(ctx):
-            pass
+            print("Save command invoked")
 
         @is_admin(self.admin_list)
         @self.bot.command(name="check_for_update")
         async def discord_check_for_update(ctx):
-            pass
+            print("Check for update command invoked")
 
         @is_admin(self.admin_list)
         @self.bot.command(name="difficulty")
         async def discord_difficulty(ctx):
-            pass
+            print("Difficulty command invoked")
 
         @self.bot.command(name="coords")
         async def discord_coords(ctx):
-            pass
+            print("Coords command invoked")
 
         @self.bot.command(name="online")
         async def discord_online(ctx):
-            pass
+            print("Online command invoked")
 
         @self.bot.event
         async def on_command_error(ctx, error):
