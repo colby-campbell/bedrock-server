@@ -56,7 +56,7 @@ class ServerRunner:
     def _read_stdout(self):
         """Internal method run in a separate thread to continuously read stdout lines from the server process and enqueue them for processing."""
         for line in self.process.stdout:
-            self.broadcaster.publish(line)
+            self.broadcaster.publish(line.rstrip())
         self.process.stdout.close()
 
 
@@ -108,8 +108,6 @@ class ServerRunner:
             self.process.wait()
         # Clean up
         self.process = None
-        with self.stdout_queue.mutex:
-            self.stdout_queue.queue.clear()
         self._stdout_thread = None
     
 

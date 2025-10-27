@@ -5,7 +5,7 @@ class OutputBroadcaster:
 
     def subscribe(self, callback):
         """Register a new subscriber to receive output."""
-        self.listeners.append(callback)
+        self.subscribers.append(callback)
 
     def publish(self, line):
         """Send a line of output to all registered subscribers using their callback function."""

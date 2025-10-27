@@ -40,18 +40,19 @@ class CommandLineInterface:
         self.running = True
         # Print any queued output first
         while not self.outputQueue.empty():
+            print("there was some queued ouptut!")
             print(self.outputQueue.get())
-        # Get 
-        with patch_stdout():
-            input_text = prompt('> ')  # User input stays clean
-        
-        if input_text.strip().lower() == "exit":
-            if self.bot is not None:
-                self.bot.discord_bot_stop()
-            self.running = False
-            return
-        elif self.runner.is_running():
-            # Send input to server stdin
-            self.runner.process.send_command(input_text)
-        else:
-            print("Server is not running. Start the server to send commands.")
+        while True:
+            with patch_stdout():
+                input_text = prompt('> ')  # User input stays clean
+            
+            if input_text.strip().lower() == "stop":
+                print("CLI: Shutting down server and exiting CLI.")
+                self.running = False
+                self.runner.stop()
+                return
+            elif self.runner.is_running():
+                # Send input to server stdin
+                self.runner.send_command(input_text)
+            else:
+                print("Server is not running. Start the server to send commands.")
