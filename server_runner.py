@@ -81,3 +81,14 @@ class ServerRunner:
         with self.stdout_queue.mutex:
             self.stdout_queue.queue.clear()
         self._stdout_thread = None
+    
+
+    def restart(self):
+        """
+        Restart the server by stopping and then starting it.
+
+        Raises:
+            RuntimeError: If stopping or starting fails.
+        """
+        self.stop()
+        self.start()
