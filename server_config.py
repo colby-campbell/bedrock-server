@@ -88,6 +88,8 @@ class ServerConfig:
             errors.append("executable_location: must be a string")
         elif not os.path.exists(self.executable_loc):
             errors.append("executable_location: path does not exist")
+        elif not os.path.isfile(self.executable_loc):
+            errors.append("executable_location: path is not a file")
         # log_location
         if self.log_loc is None:
             errors.append("log_location: missing (required)")
@@ -95,6 +97,8 @@ class ServerConfig:
             errors.append("log_location: must be a string")
         elif not os.path.exists(self.log_loc):
             errors.append("log_location: path does not exist")
+        elif not os.path.isdir(self.log_loc):
+            errors.append("log_location: path is not a directory")
         # world_location
         if self.world_loc is None:
             errors.append("world_location: missing (required)")
@@ -102,6 +106,8 @@ class ServerConfig:
             errors.append("world_location: must be a string")
         elif not os.path.exists(self.world_loc):
             errors.append("world_location: path does not exist")
+        elif not os.path.isdir(self.world_loc):
+            errors.append("world_location: path is not a directory")
         # backup_location
         if self.backup_loc is None:
             errors.append("backup_location: missing (required)")
@@ -109,6 +115,8 @@ class ServerConfig:
             errors.append("backup_location: must be a string")
         elif not os.path.exists(self.backup_loc):
             errors.append("backup_location: path does not exist")
+        elif not os.path.isdir(self.backup_loc):
+            errors.append("backup_location: path is not a directory")
         # backup_duration
         if self.backup_dur is None:
             errors.append("backup_duration: missing (required)")
