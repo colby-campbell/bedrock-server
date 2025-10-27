@@ -1,3 +1,4 @@
+from output_broadcaster import OutputBroadcaster
 import subprocess
 import threading
 import queue
@@ -14,7 +15,7 @@ class ServerRunner:
         self.executable_loc = config.executable_loc
         self.shutdown_timeout = config.shutdown_timeout
         self.process = None
-        self.stdout_queue = queue.Queue()
+        self.broadcaster = OutputBroadcaster()
         self._stdout_thread = None
     
 
@@ -55,7 +56,7 @@ class ServerRunner:
     def _read_stdout(self):
         """Internal method run in a separate thread to continuously read stdout lines from the server process and enqueue them for processing."""
         for line in self.process.stdout:
-            self.stdout_queue.put(line)
+            self.broadcaster.publish(line)
         self.process.stdout.close()
 
 

@@ -19,7 +19,6 @@ class DiscordBot:
     """
     Discord bot for managing a Minecraft Bedrock server.
     """
-
     def __init__(self, config, server, automation):
         """
         Initialize the DiscordBot with configuration, server runner, and automation instances.
