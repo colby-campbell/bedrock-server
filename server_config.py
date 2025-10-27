@@ -3,12 +3,22 @@ import os
 import sys
 
 
-'''
-ServerConfig class that reads the config file and validates their variables.
-'''
-
-
 class ServerConfig:
+    """
+    Class to read and validate the server configuration from a TOML file.
+    Attributes:
+        executable_loc (str): Path to the Minecraft Bedrock server executable.
+        log_loc (str): Path to the server log file.
+        world_loc (str): Path to the world directory.
+        backup_loc (str): Path to the backup directory.
+        backup_dur (int): Duration (in days) to keep backups.
+        shutdown_timeout (int): Timeout (in seconds) for server shutdown.
+        restart_time (list): Time [hour, minute] to restart the server daily.
+        discord_bot (bool): Whether to enable the Discord bot.
+        bot_token (str): Discord bot token.
+        admins (list): List of Discord user IDs with admin privileges.
+    """
+
     # The path to the config file
     CONFIG_PATH = "settings.toml"
 
@@ -29,6 +39,11 @@ class ServerConfig:
     """
 
     def __init__(self):
+        """
+        Initialize ServerConfig by loading and validating the config file.
+        Raises:
+            SystemExit: If the config file is missing or contains invalid settings.
+        """
         # Make sure a config file exists
         if not os.path.exists(self.CONFIG_PATH):
             with open(self.CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -60,6 +75,11 @@ class ServerConfig:
             sys.exit(1)
 
     def validate(self):
+        """
+        Validate the configuration settings.
+        Returns:
+            list (str): A list of error messages for invalid or missing settings.
+        """
         errors = []
         # executable_location
         if self.executable_loc is None:

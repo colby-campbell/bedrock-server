@@ -3,10 +3,6 @@ import asyncio
 import discord
 from discord.ext import commands
 
-'''
-DiscordBot module for managing a Minecraft Bedrock server via Discord commands.
-'''
-
 
 ## Command to check if the user has admin privileges
 def is_admin(admin_ids):
@@ -20,7 +16,18 @@ def is_admin(admin_ids):
 
 
 class DiscordBot:
+    """
+    Discord bot for managing a Minecraft Bedrock server.
+    """
+
     def __init__(self, config, server, automation):
+        """
+        Initialize the DiscordBot with configuration, server runner, and automation instances.
+        Args:
+            config (ServerConfig): The server configuration instance.
+            server (ServerRunner): The server runner instance.
+            automation (ServerAutomation): The server automation instance.
+        """
         self.admin_list = config.admins
         self.token = config.bot_token
         self.server = server
@@ -30,6 +37,7 @@ class DiscordBot:
         self.bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
     def discord_bot_start(self):
+        """Start the Discord bot and register commands."""
         # Create the help command
         @self.bot.command(name="help")
         async def discord_help(ctx):
@@ -123,5 +131,6 @@ class DiscordBot:
         self.bot.run(self.token)
 
     def discord_bot_stop(self):
+        """Stop the Discord bot."""
         # To shut down properly, schedule the close coroutine on the event loop
         asyncio.run_coroutine_threadsafe(self.bot.close(), self.bot.loop)

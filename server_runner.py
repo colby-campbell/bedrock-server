@@ -7,9 +7,8 @@ class ServerRunner:
     def __init__(self, config):
         """
         Initialize ServerRunner with a configuration object.
-
         Args:
-            config: ServerConfig object containing executable location and shutdown timeout.
+            config (ServerConfig): The server configuration instance.
         """
         self.config = config
         self.executable_loc = config.executable_loc
@@ -22,7 +21,6 @@ class ServerRunner:
     def start(self):
         """
         Start the Minecraft Bedrock server subprocess.
-
         Raises:
             RuntimeError: If the server is already running.
         """
@@ -47,7 +45,6 @@ class ServerRunner:
     def is_running(self):
         """
         Check if the server process is currently running.
-
         Returns:
             bool: True if running, False otherwise.
         """
@@ -56,23 +53,17 @@ class ServerRunner:
 
 
     def _read_stdout(self):
-        """
-        Internal method run in a separate thread to continuously read stdout
-        lines from the server process and enqueue them for processing.
-        """
+        """Internal method run in a separate thread to continuously read stdout lines from the server process and enqueue them for processing."""
         for line in self.process.stdout:
             self.stdout_queue.put(line)
         self.process.stdout.close()
 
 
-    # Method to send a command to the server
     def send_command(self, command):
         """
         Send a command string to the server's stdin.
-
         Args:
             command (str): Command string to send to the server.
-
         Raises:
             RuntimeError: If the server is not currently running.
         """
@@ -83,17 +74,13 @@ class ServerRunner:
         self.process.stdin.flush()
 
 
-    # Method to get a line of output from the server
     def get_output_line(self, timeout=None):
         """
         Retrieve the next line of output from the server stdout queue.
-
         Args:
-            timeout (float or None): How long to wait for a line. None waits indefinitely, 
-            0 for a non-blocking call.
-
+            timeout (float or None): How long to wait for a line. None waits indefinitely, 0 for a non-blocking call.
         Returns:
-            str or None: The next line from stdout, or None if the queue is empty.
+            line (str or None): The next line from stdout, or None if the queue is empty.
         """
         try:
             return self.stdout_queue.get(timeout=timeout)
@@ -101,13 +88,9 @@ class ServerRunner:
             return None
         
     
-    # Method to stop the server process
     def stop(self):
         """
-        Gracefully stop the server by sending a stop command and waiting for
-        the process to exit within the configured shutdown timeout. Forces kill
-        if unable to stop gracefully.
-
+        Gracefully stop the server by sending a stop command and waiting for the process to exit within the configured shutdown timeout. Forces kill if unable to stop gracefully.
         Raises:
             RuntimeError: If the server is not currently running.
         """
@@ -132,7 +115,6 @@ class ServerRunner:
     def restart(self):
         """
         Restart the server by stopping and then starting it.
-
         Raises:
             RuntimeError: If stopping or starting fails.
         """

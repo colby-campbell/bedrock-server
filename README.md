@@ -14,13 +14,13 @@ A robust Python toolkit to automate, configure, and manage your Minecraft Bedroc
 
 - Python 3.11+
 - Minecraft Bedrock Dedicated Server
-- Discord bot token & admin user IDs
+- Discord bot token & admin user IDs (Optional)
 
 ### Installation
 
 ## Configuration
 
-Edit `settings.toml` to specify settings. Every required value is validated at startup; invalid or missing settings will be listed like:
+Edit `settings.toml` to specify settings. Every required value is validated at startup; invalid or missing settings will be listed as follows:
 
 ```
 bedrock-server:
@@ -39,19 +39,10 @@ Refer to the generated sample for all possible options.
 - `!save`, `!online`, etc. — See user and server status
 - Only Discord admins can execute admin/owner commands.
 
-## Planned Modules
-
-- **server_runner.py**: Direct Minecraft server orchestration and status monitoring.
-- **automation.py**: Advanced scheduling, routine backups, restarts, and maintenance.
-
 ## Error Handling
 
-- All fatal errors return Unix-standard exit code `1` and print structured details for straightforward troubleshooting[attached_file:48].
+- All fatal errors return Unix-standard exit code `1` and print structured details for straightforward troubleshooting.
 - Missing configuration file: sample will be generated, with clear instructions for editing.
-
-## License
-
-MIT — see `LICENSE` for details.
 
 ## Contributing
 
