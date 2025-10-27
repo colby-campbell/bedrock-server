@@ -7,6 +7,7 @@ class ServerRunner:
     def __init__(self, config):
         self.config = config
         self.executable_loc = config.executable_loc
+        self.shutdown_timeout = config.shutdown_timeout
         self.process = None
         self.stdout_queue = queue.Queue()
         self._stdout_thread = None
@@ -66,9 +67,16 @@ class ServerRunner:
     def stop(self):
         if not self.is_running():
             raise RuntimeError("Server is not running")
-        # Close the process properly
+        # Attempt to close the process properly
         self.send_command("stop")
-        self.process.wait()
+        try:
+            # Wait for the process to exit gracefully
+            self.process.wait(timeout=self.shutdown_timeout)
+        except subprocess.TimeoutExpired:
+            # If the process does not exit in time, kill it
+            self.process.kill()
+            self.process.wait()
+        # Clean up
         self.process = None
         with self.stdout_queue.mutex:
             self.stdout_queue.queue.clear()
