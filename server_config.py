@@ -115,7 +115,7 @@ class ServerConfig:
             except ValueError:
                 errors.append(f"restart_time: {self.restart_time}: cannot contain non-integer numbers")
         # discord_bot
-        if not self.discord_bot:
+        if self.discord_bot is None:
             errors.append("discord_bot: missing (required)")
         if not isinstance(self.discord_bot, bool):
             errors.append("discord_bot: must be a boolean")
