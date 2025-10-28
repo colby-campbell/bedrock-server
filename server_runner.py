@@ -17,7 +17,7 @@ class ServerRunner:
         self.process = None
         self.broadcaster = OutputBroadcaster()
         self._stdout_thread = None
-    
+
 
     def start(self):
         """
