@@ -6,21 +6,6 @@ from output_broadcaster import OutputBroadcaster
 from broadcast_handler import BroadcastHandler
 
 
-def setup_discord_logger(broadcaster):
-    # Set up logging to use the broadcaster
-    discord_logger = logging.getLogger('discord')
-    discord_logger.handlers.clear()
-    discord_logger.setLevel(logging.INFO)
-
-    # Create and add the BroadcastHandler
-    broadcaster_handler = BroadcastHandler(broadcaster)
-    broadcaster_handler.setLevel(logging.INFO)
-    broadcaster_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
-    discord_logger.addHandler(broadcaster_handler)
-
-    return discord_logger
-
-
 ## Command to check if the user has admin privileges
 def is_admin(admin_ids):
     async def predicate(ctx):
@@ -49,8 +34,9 @@ class DiscordBot:
         self.server = server
         self.automation = automation
         self.broadcaster = OutputBroadcaster()
-        # Setup discord logger to use the custom broadcaster
+        # Create a custom broadcast handler for logging
         self.broadcast_handler = BroadcastHandler(self.broadcaster)
+        # Create a custom log formatter for logging
         self.log_formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
         intents = discord.Intents.default()
         intents.message_content = True

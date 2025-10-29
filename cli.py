@@ -1,4 +1,4 @@
-from prompt_toolkit import prompt, print_formatted_text, ANSI
+from prompt_toolkit import prompt, print_formatted_text, ANSI, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from queue import Queue
 from datetime import datetime
@@ -21,7 +21,7 @@ def process_line(line):
         timestamp = timestamp.replace(",", ":")
         level = match.group("level")
         match level:
-            case "UNK":
+            case "UNKNOWN":
                 # Green for unknown
                 ansi_code = "\033[32m"
             case "DEBUG":
@@ -42,18 +42,20 @@ def process_line(line):
             case _:
                 # Default to yellow for unrecognized levels
                 ansi_code = "\033[33m"
-        spacing = " " * (9 - len(level))
+        # Calculate spacing for alignment
+        spacing = " " * (max(9 - len(level), 1))
+        # Get the message part ('or ""' to handle None case)
         message = match.group("message") or ""
 
         # Now you can format and print or log
         return f"\033[1;90m{timestamp} {ansi_code}{level}\033[0m{spacing}{message}"
     else:
-        return f"\033[1;90m{get_timestamp()} \033[32mUNK\033[0m      {line}"
+        return f"\033[1;90m{get_timestamp()} \033[32mUNKNOWN\033[0m  {line}"
 
 
 def add_timestamp(line):
-    """Add a timestamp to a line."""
-    return f"\033[1;90m{get_timestamp()} \033[35mCLI\033[0m     {line}"
+    """Add a timestamp to a line for custom CLI responses."""
+    return f"\033[1;90m{get_timestamp()} \033[35mCLI\033[0m      {line}"
 
 
 class CommandLineInterface:
@@ -78,12 +80,9 @@ class CommandLineInterface:
         self.runner.broadcaster.subscribe(self.handle_server_output)
         self.automation = automation
         self.bot = bot
-        # Subscribe to the bot broadcaster if bot is provided
+        # Subscribe to the discord bot broadcaster if bot is provided
         if self.bot is not None:
             self.bot.broadcaster.subscribe(self.handle_discord_output)
-        # Stores the ouputs before the CLI is ready to display them
-        self.outputQueue = Queue()
-        self.running = True
 
 
     def handle_server_output(self, line):
@@ -98,13 +97,16 @@ class CommandLineInterface:
 
     def start(self):
         """Start the command-line interface loop."""
-        self.running = True
+        session = PromptSession()
+        # Starting print messages for CLI
+        print_formatted_text(ANSI(add_timestamp("Type ':help' for a list of built-in commands.")))
+        print_formatted_text(ANSI(add_timestamp(f"Discord bot is {'ENABLED' if self.config.discord_bot else 'DISABLED'}")))
         # Main input loop
         while True:
             # Prompt for input
             try:
                 with patch_stdout():
-                    input_text = prompt('bedrock-server> ').strip()
+                    input_text = session.prompt('bedrock-server> ').strip()
             except (EOFError, KeyboardInterrupt) as e:
                 # If the bot is not running or is fully started or fully stopped, allow exit
                 if self.bot is None or self.bot is not None and self.bot.bot.is_ready() or self.bot is not None and self.bot.bot.is_closed():
@@ -112,7 +114,6 @@ class CommandLineInterface:
                         print(add_timestamp("KeyboardInterrupt received, forcefully exiting CLI..."))
                     else:
                         print(add_timestamp("EOF received, forcefully exiting CLI..."))
-                    self.running = False
                     break
                 else:
                     print_formatted_text(ANSI(add_timestamp("Cannot forcefully exit the CLI while the Discord bot is still starting.")))
@@ -122,8 +123,19 @@ class CommandLineInterface:
             if input_text.startswith(':'):
                 # Process CLI built-in command
                 cmd = input_text[1:].lower().strip()
+                # Help
+                if cmd == 'help':
+                    help_text = """
+                    Built-in commands (prefix with ':'):
+                    :help          Show this help message
+                    :start         Start the Minecraft Bedrock server
+                    :stop          Stop the server
+                    :restart       Restart the server
+                    :exit, :quit   Exit the CLI (and stop the server if running)
+                    """
+                    print_formatted_text(ANSI(add_timestamp(help_text.strip())))
                 # Stop
-                if cmd == 'stop':
+                elif cmd == 'stop':
                     if self.runner.is_running():
                         print_formatted_text(ANSI(add_timestamp("Stopping server...")))
                         self.runner.stop()
@@ -152,7 +164,6 @@ class CommandLineInterface:
                             print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
                             self.runner.stop()
                         print_formatted_text(ANSI(add_timestamp("Exiting CLI...")))
-                        self.running = False
                         break
                     else:
                         print_formatted_text(ANSI(add_timestamp("Cannot exit the CLI while the Discord bot is still starting.")))
