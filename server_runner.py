@@ -1,4 +1,4 @@
-from output_broadcaster import OutputBroadcaster
+from output_broadcaster import LineBroadcaster, SignalBroadcaster
 import subprocess
 import threading
 import queue
@@ -15,8 +15,10 @@ class ServerRunner:
         self.executable_loc = config.executable_loc
         self.shutdown_timeout = config.shutdown_timeout
         self.process = None
-        self.broadcaster = OutputBroadcaster()
+        self.stdout_broadcaster = LineBroadcaster()
+        self.unexpected_shutdown_broadcaster = SignalBroadcaster()
         self._stdout_thread = None
+        self._expected_shutdown = False
 
 
     def start(self):
@@ -27,7 +29,9 @@ class ServerRunner:
         """
         if self.process:
             raise RuntimeError("Server is already running")
-        
+
+        self._expected_shutdown = False
+
         # Start the server process
         self.process = subprocess.Popen(
             [self.executable_loc],
@@ -56,11 +60,14 @@ class ServerRunner:
     def _read_stdout(self):
         """Internal method run in a separate thread to continuously read stdout lines from the server process and enqueue them for processing."""
         for line in self.process.stdout:
-            self.broadcaster.publish(line.rstrip())
+            self.stdout_broadcaster.publish(line.rstrip())
         self.process.stdout.close()
         # Clean up runner state after process exits
         self.process = None
         self._stdout_thread = None
+        # If the shutdown was not expected, we alert all subscribers
+        if not self._expected_shutdown:
+            self.unexpected_shutdown_broadcaster.publish()
 
 
     def send_command(self, command):
@@ -100,6 +107,8 @@ class ServerRunner:
         """
         if not self.is_running():
             raise RuntimeError("Server is not running")
+        # Indicate that this was a expected shutdown
+        self._expected_shutdown = True
         # Attempt to close the process properly
         self.send_command("stop")
         try:

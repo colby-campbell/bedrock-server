@@ -2,7 +2,7 @@ import asyncio
 import discord
 import logging
 from discord.ext import commands
-from output_broadcaster import OutputBroadcaster
+from output_broadcaster import LineBroadcaster
 from broadcast_handler import BroadcastHandler
 
 
@@ -33,7 +33,7 @@ class DiscordBot:
         self.token = config.bot_token
         self.server = server
         self.automation = automation
-        self.broadcaster = OutputBroadcaster()
+        self.broadcaster = LineBroadcaster()
         # Create a custom broadcast handler for logging
         self.broadcast_handler = BroadcastHandler(self.broadcaster)
         # Create a custom log formatter for logging
