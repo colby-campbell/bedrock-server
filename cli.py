@@ -3,6 +3,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from queue import Queue
 from datetime import datetime
 import re
+import logging
 
 
 def get_timestamp():
@@ -12,25 +13,42 @@ def get_timestamp():
 
 def process_line(line):
     """Process a line from the server."""
-    pattern = re.compile(r"\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}:\d{3}) (?P<level>\w+)\](?: (?P<message>.*))?")
+    pattern = re.compile(r"\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[:,]\d{3}) (?P<level>\w+)\](?: (?P<message>.*))?")
     match = pattern.match(line)
     if match:
         timestamp = match.group("timestamp")
+        # Replace comma with colon in timestamp for consistency
+        timestamp = timestamp.replace(",", ":")
         level = match.group("level")
         match level:
+            case "UNK":
+                # Green for unknown
+                ansi_code = "\033[32m"
+            case "DEBUG":
+                # Cyan for debug
+                ansi_code = "\033[36m"
             case "INFO":
+                # Blue for info
                 ansi_code = "\033[34m"
-            case "ERROR":
-                ansi_code = "\033[31m"
-            case _:
+            case "WARNING":
+                # Yellow for warning
                 ansi_code = "\033[33m"
-        spacing = " " * (8 - len(level))
+            case "ERROR":
+                # Red for error
+                ansi_code = "\033[31m"
+            case "CRITICAL":
+                # Bold red for critical
+                ansi_code = "\033[1;31m"
+            case _:
+                # Default to yellow for unrecognized levels
+                ansi_code = "\033[33m"
+        spacing = " " * (9 - len(level))
         message = match.group("message") or ""
 
         # Now you can format and print or log
         return f"\033[1;90m{timestamp} {ansi_code}{level}\033[0m{spacing}{message}"
     else:
-        return f"\033[1;90m{get_timestamp()} \033[33mUNK\033[0m     {line}"
+        return f"\033[1;90m{get_timestamp()} \033[32mUNK\033[0m      {line}"
 
 
 def add_timestamp(line):
@@ -60,6 +78,9 @@ class CommandLineInterface:
         self.runner.broadcaster.subscribe(self.handle_server_output)
         self.automation = automation
         self.bot = bot
+        # Subscribe to the bot broadcaster if bot is provided
+        if self.bot is not None:
+            self.bot.broadcaster.subscribe(self.handle_discord_output)
         # Stores the ouputs before the CLI is ready to display them
         self.outputQueue = Queue()
         self.running = True
@@ -67,27 +88,26 @@ class CommandLineInterface:
 
     def handle_server_output(self, line):
         """Handle server output lines by printing them to the CLI."""
-        if not self.running:
-            self.outputQueue.put(line)
-        else:
-            print_formatted_text(ANSI(process_line(line)))
-        
+        print_formatted_text(ANSI(process_line(line)))
+    
+
+    def handle_discord_output(self, line):
+        """Print Discord log messages to the CLI with formatting."""
+        print_formatted_text(ANSI(process_line(line)))
 
 
     def start(self):
         """Start the command-line interface loop."""
         self.running = True
-        # Print any queued output first
-        while not self.outputQueue.empty():
-            print("there was some queued ouptut!")
-            print_formatted_text(ANSI(process_line(self.outputQueue.get())))
         # Main input loop
         while True:
+            # Prompt for input
             try:
                 with patch_stdout():
                     input_text = prompt('bedrock-server> ').strip()
             except (EOFError, KeyboardInterrupt) as e:
-                if not self.config.discord_bot or self.config.discord_bot and self.bot.bot.is_ready():
+                # If the bot is not running or is fully started or fully stopped, allow exit
+                if self.bot is None or self.bot is not None and self.bot.bot.is_ready() or self.bot is not None and self.bot.bot.is_closed():
                     if isinstance(e, KeyboardInterrupt):
                         print(add_timestamp("KeyboardInterrupt received, forcefully exiting CLI..."))
                     else:
@@ -97,7 +117,8 @@ class CommandLineInterface:
                 else:
                     print_formatted_text(ANSI(add_timestamp("Cannot forcefully exit the CLI while the Discord bot is still starting.")))
                     continue
-            # Process input
+            
+            # Built-in CLI commands
             if input_text.startswith(':'):
                 # Process CLI built-in command
                 cmd = input_text[1:].lower().strip()
@@ -125,7 +146,8 @@ class CommandLineInterface:
                         self.runner.start()
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
-                    if not self.config.discord_bot or self.config.discord_bot and self.bot.bot.is_ready():
+                    # If the bot is not running or is fully started or fully stopped, allow exit
+                    if self.bot is None or self.bot is not None and self.bot.bot.is_ready() or self.bot is not None and self.bot.bot.is_closed():
                         if self.runner.is_running():
                             print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
                             self.runner.stop()
@@ -136,8 +158,10 @@ class CommandLineInterface:
                         print_formatted_text(ANSI(add_timestamp("Cannot exit the CLI while the Discord bot is still starting.")))
                 else:
                     print_formatted_text(ANSI(add_timestamp(f"Unknown command '{cmd}'.")))
+
+            # Normal server command input
             else:
-                # Block blocked commands without prefix
+                # Block blocked CLI commands without prefix
                 words = input_text.lower().split()
                 if words and words[0] in self.BLOCKED_COMMANDS:
                     print_formatted_text(ANSI(add_timestamp(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")))

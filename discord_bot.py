@@ -1,7 +1,24 @@
 import asyncio
-
 import discord
+import logging
 from discord.ext import commands
+from output_broadcaster import OutputBroadcaster
+from broadcast_handler import BroadcastHandler
+
+
+def setup_discord_logger(broadcaster):
+    # Set up logging to use the broadcaster
+    discord_logger = logging.getLogger('discord')
+    discord_logger.handlers.clear()
+    discord_logger.setLevel(logging.INFO)
+
+    # Create and add the BroadcastHandler
+    broadcaster_handler = BroadcastHandler(broadcaster)
+    broadcaster_handler.setLevel(logging.INFO)
+    broadcaster_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
+    discord_logger.addHandler(broadcaster_handler)
+
+    return discord_logger
 
 
 ## Command to check if the user has admin privileges
@@ -31,6 +48,10 @@ class DiscordBot:
         self.token = config.bot_token
         self.server = server
         self.automation = automation
+        self.broadcaster = OutputBroadcaster()
+        # Setup discord logger to use the custom broadcaster
+        self.broadcast_handler = BroadcastHandler(self.broadcaster)
+        self.log_formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
         intents = discord.Intents.default()
         intents.message_content = True
         self.bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
@@ -126,8 +147,8 @@ class DiscordBot:
             if isinstance(error, commands.errors.CheckFailure):
                 await ctx.send("You do not have the permissions to use this command.")
 
-        # Start the discord bot with no logging
-        self.bot.run(self.token, log_handler=None)
+        # Start the discord bot with custom logging
+        self.bot.run(self.token, log_handler=self.broadcast_handler, log_formatter=self.log_formatter)
 
     def discord_bot_stop(self):
         """Stop the Discord bot."""
