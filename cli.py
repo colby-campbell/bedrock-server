@@ -18,9 +18,10 @@ def process_line(line):
         line = line[len("NO LOG FILE! - "):]
         # Show a warning about this on first detection only once using getattr()
         if not getattr(process_line, "warned_no_log_file", False):
-            print_formatted_text(ANSI(f"\033[1;90m{get_timestamp()} \033[33mWARNING\033[0m  Detected 'NO LOG FILE!' prefix in server output. Another instance may be running or a lock is in place. Subsequent messages will not show this warning."))
+            print_formatted_text(ANSI(f"\033[1;90m{get_timestamp()} \033[33mWARNING\033[0m  Detected 'NO LOG FILE!' prefix in server output. This usually means another server instance is running or the log file is locked. Log output will only appear in the console and not in a file. Subsequent messages will not show this warning."))
             process_line.warned_no_log_file = True
 
+    # Regex to parse log lines
     pattern = re.compile(r"\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[:,]\d{3}) (?P<level>\w+)\](?: (?P<message>.*))?")
     match = pattern.match(line)
     if match:
@@ -28,37 +29,31 @@ def process_line(line):
         # Replace comma with colon in timestamp for consistency
         timestamp = timestamp.replace(",", ":")
         level = match.group("level")
+        # ANSI color codes based on log level
         match level:
-            case "UNKNOWN":
-                # Green for unknown
-                ansi_code = "\033[32m"
+            case "RAW":
+                ansi_code = "\033[32m"  # Green for raw
             case "DEBUG":
-                # Cyan for debug
-                ansi_code = "\033[36m"
+                ansi_code = "\033[36m"  # Cyan for debug
             case "INFO":
-                # Blue for info
-                ansi_code = "\033[34m"
+                ansi_code = "\033[34m"  # Blue for info
             case "WARNING":
-                # Yellow for warning
-                ansi_code = "\033[33m"
+                ansi_code = "\033[33m"  # Yellow for warning
             case "ERROR":
-                # Red for error
-                ansi_code = "\033[31m"
+                ansi_code = "\033[31m"  # Red for error
             case "CRITICAL":
-                # Bold red for critical
-                ansi_code = "\033[1;31m"
+                ansi_code = "\033[1;31m"  # Bold red for critical
             case _:
-                # Default to yellow for unrecognized levels
-                ansi_code = "\033[33m"
+                ansi_code = "\033[33m"  # Default to yellow for unrecognized levels
         # Calculate spacing for alignment
         spacing = " " * (max(9 - len(level), 1))
         # Get the message part ('or ""' to handle None case)
         message = match.group("message") or ""
-
-        # Now you can format and print or log
+        # Return the formatted line with ANSI codes
         return f"\033[1;90m{timestamp} {ansi_code}{level}\033[0m{spacing}{message}"
     else:
-        return f"\033[1;90m{get_timestamp()} \033[32mUNKNOWN\033[0m  {line}"
+        # If the line doesn't contain a timestamp, return it with an 'RAW' level
+        return f"\033[1;90m{get_timestamp()} \033[32mRAW\033[0m      {line}"
 
 
 def add_timestamp(line):
@@ -91,16 +86,21 @@ class CommandLineInterface:
         # Subscribe to the discord bot broadcaster if bot is provided
         if self.bot is not None:
             self.bot.broadcaster.subscribe(self.handle_discord_output)
+        # TODO: Should I replace this with a unsubscribe?
+        # Running variable so as to know when to stop printing to the screen
+        self.running = True
 
 
     def handle_server_output(self, line):
         """Handle server output lines by printing them to the CLI."""
-        print_formatted_text(ANSI(process_line(line)))
+        if self.running:
+            print_formatted_text(ANSI(process_line(line)))
     
 
     def handle_discord_output(self, line):
         """Print Discord log messages to the CLI with formatting."""
-        print_formatted_text(ANSI(process_line(line)))
+        if self.running:
+            print_formatted_text(ANSI(process_line(line)))
 
 
     def start(self):
@@ -122,6 +122,7 @@ class CommandLineInterface:
                         print(add_timestamp("KeyboardInterrupt received, forcefully exiting CLI..."))
                     else:
                         print(add_timestamp("EOF received, forcefully exiting CLI..."))
+                    self.running = False
                     break
                 else:
                     print_formatted_text(ANSI(add_timestamp("Cannot forcefully exit the CLI while the Discord bot is still starting.")))
@@ -172,6 +173,7 @@ class CommandLineInterface:
                             print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
                             self.runner.stop()
                         print_formatted_text(ANSI(add_timestamp("Exiting CLI...")))
+                        self.running = False
                         break
                     else:
                         print_formatted_text(ANSI(add_timestamp("Cannot exit the CLI while the Discord bot is still starting.")))
