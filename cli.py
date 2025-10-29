@@ -43,7 +43,7 @@ class CommandLineInterface:
     Command-Line Interface for interacting with the Minecraft Bedrock server.
     """
 
-    BLOCKED_COMMANDS = {'stop', 'start', 'restart'}
+    BLOCKED_COMMANDS = {'stop', 'start', 'restart', 'exit', 'quit'}
 
     def __init__(self, config, runner, automation, bot):
         """
@@ -87,7 +87,7 @@ class CommandLineInterface:
                 with patch_stdout():
                     input_text = prompt('bedrock-server> ').strip()
             except (EOFError, KeyboardInterrupt) as e:
-                if self.config.discord_bot and self.bot.bot.is_ready():
+                if not self.config.discord_bot or self.config.discord_bot and self.bot.bot.is_ready():
                     if isinstance(e, KeyboardInterrupt):
                         print(add_timestamp("KeyboardInterrupt received, forcefully exiting CLI..."))
                     else:
@@ -95,7 +95,7 @@ class CommandLineInterface:
                     self.running = False
                     break
                 else:
-                    print_formatted_text(ANSI(add_timestamp("Cannot forcefully stop the server from CLI when Discord bot is still starting.")))
+                    print_formatted_text(ANSI(add_timestamp("Cannot forcefully exit the CLI while the Discord bot is still starting.")))
                     continue
             # Process input
             if input_text.startswith(':'):
@@ -125,12 +125,15 @@ class CommandLineInterface:
                         self.runner.start()
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
-                    if self.runner.is_running():
-                        print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
-                        self.runner.stop()
-                    print_formatted_text(ANSI(add_timestamp("Exiting CLI...")))
-                    self.running = False
-                    break
+                    if not self.config.discord_bot or self.config.discord_bot and self.bot.bot.is_ready():
+                        if self.runner.is_running():
+                            print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
+                            self.runner.stop()
+                        print_formatted_text(ANSI(add_timestamp("Exiting CLI...")))
+                        self.running = False
+                        break
+                    else:
+                        print_formatted_text(ANSI(add_timestamp("Cannot exit the CLI while the Discord bot is still starting.")))
                 else:
                     print_formatted_text(ANSI(add_timestamp(f"Unknown command '{cmd}'.")))
             else:

@@ -37,8 +37,9 @@ if __name__ == "__main__":
     config = ServerConfig()
     runner = ServerRunner(config)
     automation = None  # Placeholder for ServerAutomation instance
+    bot = None
 
-    # Register cleanup with atexit for normal and exception-based exits
+        # Register cleanup with atexit for normal and exception-based exits
     atexit.register(cleanup)
 
     # Start the Discord bot if enabled in the config
