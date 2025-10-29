@@ -1,6 +1,5 @@
 from prompt_toolkit import prompt, print_formatted_text, ANSI, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from queue import Queue
 from datetime import datetime
 import re
 import logging
