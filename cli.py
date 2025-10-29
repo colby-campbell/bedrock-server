@@ -13,6 +13,14 @@ def get_timestamp():
 
 def process_line(line):
     """Process a line from the server."""
+    # Detect and strip no log file prefix (this happens when the server is running two instances on the same port)
+    if line.startswith("NO LOG FILE! - ["):
+        line = line[len("NO LOG FILE! - "):]
+        # Show a warning about this on first detection only once using getattr()
+        if not getattr(process_line, "warned_no_log_file", False):
+            print_formatted_text(ANSI(f"\033[1;90m{get_timestamp()} \033[33mWARNING\033[0m  Detected 'NO LOG FILE!' prefix in server output. Another instance may be running or a lock is in place. Subsequent messages will not show this warning."))
+            process_line.warned_no_log_file = True
+
     pattern = re.compile(r"\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[:,]\d{3}) (?P<level>\w+)\](?: (?P<message>.*))?")
     match = pattern.match(line)
     if match:

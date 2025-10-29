@@ -58,6 +58,9 @@ class ServerRunner:
         for line in self.process.stdout:
             self.broadcaster.publish(line.rstrip())
         self.process.stdout.close()
+        # Clean up runner state after process exits
+        self.process = None
+        self._stdout_thread = None
 
 
     def send_command(self, command):
