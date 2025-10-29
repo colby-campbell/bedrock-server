@@ -22,11 +22,14 @@ Command-Line Interface - takes ServerRunner, ServerConfig, ServerAutomation, and
 
 def cleanup():
     """Cleanup function to ensure server and bot are shut down on exit."""
+    print("bedrock-server:")
     if bot is not None:
+        print("  main: stopping Discord bot before exit...")
         bot.discord_bot_stop()
     if runner.is_running():
+        print("  main: stopping server before exit...")
         runner.stop()
-    print("bedrock-server: exited cleanly")
+    print("  main: exited cleanly")
 
 
 if __name__ == "__main__":
@@ -34,7 +37,6 @@ if __name__ == "__main__":
     config = ServerConfig()
     runner = ServerRunner(config)
     automation = None  # Placeholder for ServerAutomation instance
-    bot = None
 
     # Register cleanup with atexit for normal and exception-based exits
     atexit.register(cleanup)

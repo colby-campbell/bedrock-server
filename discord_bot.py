@@ -126,8 +126,8 @@ class DiscordBot:
             if isinstance(error, commands.errors.CheckFailure):
                 await ctx.send("You do not have the permissions to use this command.")
 
-        # Start the discord bot
-        self.bot.run(self.token)
+        # Start the discord bot with no logging
+        self.bot.run(self.token, log_handler=None)
 
     def discord_bot_stop(self):
         """Stop the Discord bot."""

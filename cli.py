@@ -1,6 +1,41 @@
-from prompt_toolkit import prompt
+from prompt_toolkit import prompt, print_formatted_text, ANSI
 from prompt_toolkit.patch_stdout import patch_stdout
 from queue import Queue
+from datetime import datetime
+import re
+
+
+def get_timestamp():
+    """Get the current timestamp in the format YYYY-MM-DD HH:MM:SS:MMM"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S") + f":{datetime.now().microsecond // 1000:03d}"
+
+
+def process_line(line):
+    """Process a line from the server."""
+    pattern = re.compile(r"\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}:\d{3}) (?P<level>\w+)\](?: (?P<message>.*))?")
+    match = pattern.match(line)
+    if match:
+        timestamp = match.group("timestamp")
+        level = match.group("level")
+        match level:
+            case "INFO":
+                ansi_code = "\033[34m"
+            case "ERROR":
+                ansi_code = "\033[31m"
+            case _:
+                ansi_code = "\033[33m"
+        spacing = " " * (8 - len(level))
+        message = match.group("message") or ""
+
+        # Now you can format and print or log
+        return f"\033[1;90m{timestamp} {ansi_code}{level}\033[0m{spacing}{message}"
+    else:
+        return f"\033[1;90m{get_timestamp()} \033[33mUNK\033[0m     {line}"
+
+
+def add_timestamp(line):
+    """Add a timestamp to a line."""
+    return f"\033[1;90m{get_timestamp()} \033[35mCLI\033[0m     {line}"
 
 
 class CommandLineInterface:
@@ -35,11 +70,7 @@ class CommandLineInterface:
         if not self.running:
             self.outputQueue.put(line)
         else:
-            print(line)
-
-
-    def handle_input(self, input_text):
-        input_text = input_text.strip()
+            print_formatted_text(ANSI(process_line(line)))
         
 
 
@@ -49,53 +80,66 @@ class CommandLineInterface:
         # Print any queued output first
         while not self.outputQueue.empty():
             print("there was some queued ouptut!")
-            print(self.outputQueue.get())
+            print_formatted_text(ANSI(process_line(self.outputQueue.get())))
         # Main input loop
         while True:
-            with patch_stdout():
-                input_text = prompt('bedrock> ').strip()
             try:
-                if input_text.startswith(':'):
-                    # Process CLI built-in command
-                    cmd = input_text[1:].lower().strip()
-                    # Stop
-                    if cmd == 'stop':
-                        if self.server.is_running():
-                            print("Stopping server...")
-                            self.runner.stop()
-                        else:
-                            print("Server is not running.")
-                    # Start
-                    elif cmd == 'start':
-                        if self.server.is_running():
-                            print("Server is already running.")
-                        else:
-                            print("Starting server...")
-                            self.runner.start()
-                    # Restart
-                    elif cmd == 'restart':
-                        if self.server.is_running():
-                            print("Restarting server...")
-                            self.runner.restart()
-                        else:
-                            print("Server is not running. Starting server...")
-                            self.runner.start()
-                    else:
-                        print(f"Unknown command: {cmd}")
-                else:
-                    # Block blocked commands without prefix
-                    words = input_text.lower().split()
-                    if words and words[0] in self.BLOCKED_COMMANDS:
-                        print(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")
-                    # Otherwise send it as normal server input
-                    elif words and self.runner.is_running():
-                        self.runner.send_command(input_text)
-                    else:
-                        print("Server is not running. Start the server to send commands.")
+                with patch_stdout():
+                    input_text = prompt('bedrock-server> ').strip()
             except (EOFError, KeyboardInterrupt) as e:
-                if e is KeyboardInterrupt:
-                    print("KeyboardInterrupt received, shutting down CLI...")
+                if self.config.discord_bot and self.bot.bot.is_ready():
+                    if isinstance(e, KeyboardInterrupt):
+                        print(add_timestamp("KeyboardInterrupt received, forcefully exiting CLI..."))
+                    else:
+                        print(add_timestamp("EOF received, forcefully exiting CLI..."))
+                    self.running = False
+                    break
                 else:
-                    print("EOF received, shutting down CLI...")
-                self.running = False
-                break
+                    print_formatted_text(ANSI(add_timestamp("Cannot forcefully stop the server from CLI when Discord bot is still starting.")))
+                    continue
+            # Process input
+            if input_text.startswith(':'):
+                # Process CLI built-in command
+                cmd = input_text[1:].lower().strip()
+                # Stop
+                if cmd == 'stop':
+                    if self.runner.is_running():
+                        print_formatted_text(ANSI(add_timestamp("Stopping server...")))
+                        self.runner.stop()
+                    else:
+                        print_formatted_text(ANSI(add_timestamp("Server is not running.")))
+                # Start
+                elif cmd == 'start':
+                    if self.runner.is_running():
+                        print_formatted_text(ANSI(add_timestamp("Server is already running.")))
+                    else:
+                        print_formatted_text(ANSI(add_timestamp("Starting server...")))
+                        self.runner.start()
+                # Restart
+                elif cmd == 'restart':
+                    if self.runner.is_running():
+                        print_formatted_text(ANSI(add_timestamp("Restarting server...")))
+                        self.runner.restart()
+                    else:
+                        print_formatted_text(ANSI(add_timestamp("Server is not running, starting server...")))
+                        self.runner.start()
+                # Exit
+                elif cmd == 'exit' or cmd == 'quit':
+                    if self.runner.is_running():
+                        print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
+                        self.runner.stop()
+                    print_formatted_text(ANSI(add_timestamp("Exiting CLI...")))
+                    self.running = False
+                    break
+                else:
+                    print_formatted_text(ANSI(add_timestamp(f"Unknown command '{cmd}'.")))
+            else:
+                # Block blocked commands without prefix
+                words = input_text.lower().split()
+                if words and words[0] in self.BLOCKED_COMMANDS:
+                    print_formatted_text(ANSI(add_timestamp(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")))
+                # Otherwise send it as normal server input
+                elif words and self.runner.is_running():
+                    self.runner.send_command(input_text)
+                else:
+                    print_formatted_text(ANSI(add_timestamp("Server is not running, start the server to send commands.")))
