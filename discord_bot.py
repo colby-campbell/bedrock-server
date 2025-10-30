@@ -35,7 +35,7 @@ class DiscordBot:
         self.automation = automation
         self.broadcaster = LineBroadcaster()
         # Create a custom broadcast handler for logging
-        self.broadcast_handler = BroadcastHandler(self.broadcaster)
+        self.broadcast_handler = BroadcastHandler(self.broadcaster, self.automation.logger)
         # Create a custom log formatter for logging
         self.log_formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
         intents = discord.Intents.default()

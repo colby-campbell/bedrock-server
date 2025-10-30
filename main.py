@@ -29,6 +29,9 @@ def cleanup():
     if runner.is_running():
         print("  main: stopping server before exit...")
         runner.stop()
+    if automation.logger.running:
+        print("  main: stopping logger before exit...")
+        automation.logger.stop()
     print("  main: exited cleanly")
 
 
@@ -36,7 +39,7 @@ if __name__ == "__main__":
     # Get config info, create server runner and automation instances, and create the discord bot
     config = ServerConfig()
     runner = ServerRunner(config)
-    automation = None  # Placeholder for ServerAutomation instance
+    automation = ServerAutomation(config, runner)  # Placeholder for ServerAutomation instance
     bot = None
 
     # Register cleanup with atexit for normal and exception-based exits

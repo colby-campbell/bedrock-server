@@ -1,3 +1,5 @@
+from buffered_daily_logger import BufferedDailyLogger
+
 """
 This will need to manage server automation tasks like
 - Scheduled restarts
@@ -16,9 +18,11 @@ class ServerAutomation:
         self.config = config
         self.runner = runner
         # Subscribe to the output broadcaster
-        self.runner.output_broadcaster.subscribe(self.handle_server_output)
+        self.runner.stdout_broadcaster.subscribe(self.handle_server_output)
+        # Create logger if enabled
+        self.logger = BufferedDailyLogger(self.config.log_loc)
     
 
     def handle_server_output(self, line):
         # Process server output lines for automation triggers
-        pass
+        self.logger.log(line)
