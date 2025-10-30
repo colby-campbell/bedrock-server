@@ -1,4 +1,5 @@
 import logging
+from format_helper import process_line
 
 
 class BroadcastHandler(logging.Handler):
@@ -11,5 +12,8 @@ class BroadcastHandler(logging.Handler):
     def emit(self, record):
         """Emit a log record by publishing it to the broadcaster."""
         msg = self.format(record)
-        self.broadcaster.publish(msg)
-        self.logger.log(msg)
+        timestamp, text = process_line(msg)
+        # Send the timestamp and the text to the CLI
+        self.broadcaster.publish(timestamp, text)
+        # Just combine the timestamp and the text and send it to the logger
+        self.logger.log(timestamp + text)

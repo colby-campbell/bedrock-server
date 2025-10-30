@@ -17,12 +17,17 @@ class ServerAutomation:
     def __init__(self, config, runner):
         self.config = config
         self.runner = runner
-        # Subscribe to the output broadcaster
+        # Subscribe to the stdout broadcaster and unexpected shutdown broadcaster
         self.runner.stdout_broadcaster.subscribe(self.handle_server_output)
+        self.runner.unexpected_shutdown_broadcaster.subscribe(self.handle_unexpected_shutdown)
         # Create logger if enabled
         self.logger = BufferedDailyLogger(self.config.log_loc)
     
 
-    def handle_server_output(self, line):
+    def handle_server_output(self, timestamp, line):
         # Process server output lines for automation triggers
-        self.logger.log(line)
+        self.logger.log(timestamp + line)
+    
+
+    def handle_unexpected_shutdown(self, timestamp, line):
+        self.logger.log(timestamp + line)

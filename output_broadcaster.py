@@ -12,18 +12,17 @@ class Broadcaster:
         self.subscribers.append(callback)
 
 class LineBroadcaster(Broadcaster):
-    def publish(self, line):
+    def publish(self, timestamp, line):
         """
         Send a line of output to all registered subscribers using their callback function.
         Args:
             line (str): Line to send to all subscribers
         """
         for callback in self.subscribers:
-            callback(line)
+            callback(timestamp, line)
 
 class SignalBroadcaster(Broadcaster):
     def publish(self):
         """Send an alert to all registered subscribers using their callback function."""
         for callback in self.subscribers:
             callback()
-

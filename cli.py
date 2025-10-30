@@ -1,31 +1,16 @@
 from prompt_toolkit import prompt, print_formatted_text, ANSI, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from datetime import datetime
 import re
+from format_helper import get_timestamp
 
 
-def get_timestamp():
-    """Get the current timestamp in the format YYYY-MM-DD HH:MM:SS:MMM"""
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S") + f":{datetime.now().microsecond // 1000:03d}"
-
-
-def process_line(line):
+def add_colour(prefix, message):
     """Process a line from the server."""
-    # Detect and strip no log file prefix (this happens when the server is running two instances on the same port)
-    if line.startswith("NO LOG FILE! - ["):
-        line = line[len("NO LOG FILE! - "):]
-        # Show a warning about this on first detection only once using getattr()
-        if not getattr(process_line, "warned_no_log_file", False):
-            print_formatted_text(ANSI(f"\033[1;90m{get_timestamp()} \033[33mWARNING\033[0m  Detected 'NO LOG FILE!' prefix in server output. This usually means another server instance is running or the log file is locked. Log output will only appear in the console and not in a file. Subsequent messages will not show this warning."))
-            process_line.warned_no_log_file = True
-
     # Regex to parse log lines
-    pattern = re.compile(r"\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[:,]\d{3}) (?P<level>\w+)\](?: (?P<message>.*))?")
-    match = pattern.match(line)
+    pattern = re.compile(r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[:,]\d{3}) (?P<level>\w+)")
+    match = pattern.match(prefix)
     if match:
         timestamp = match.group("timestamp")
-        # Replace comma with colon in timestamp for consistency
-        timestamp = timestamp.replace(",", ":")
         level = match.group("level")
         # ANSI color codes based on log level
         match level:
@@ -45,18 +30,11 @@ def process_line(line):
                 ansi_code = "\033[33m"  # Default to yellow for unrecognized levels
         # Calculate spacing for alignment
         spacing = " " * (max(9 - len(level), 1))
-        # Get the message part ('or ""' to handle None case)
-        message = match.group("message") or ""
         # Return the formatted line with ANSI codes
         return f"\033[1;90m{timestamp} {ansi_code}{level}\033[0m{spacing}{message}"
     else:
-        # If the line doesn't contain a timestamp, return it with an 'RAW' level
-        return f"\033[1;90m{get_timestamp()} \033[32mRAW\033[0m      {line}"
-
-
-def add_timestamp(line):
-    """Add a timestamp to a line for custom CLI responses."""
-    return f"\033[1;90m{get_timestamp()} \033[35mCLI\033[0m      {line}"
+        # If the line's timestamp fails the regular expression, return it with an error
+        return f"Failed to format line: {prefix}{message}"
 
 
 class CommandLineInterface:
@@ -90,29 +68,43 @@ class CommandLineInterface:
         self.running = True
 
 
-    def handle_server_output(self, line):
+    def handle_server_output(self, timestamp, line):
         """Handle server output lines by printing them to the CLI."""
         if self.running:
-            print_formatted_text(ANSI(process_line(line)))
+            print_formatted_text(ANSI(add_colour(timestamp, line)))
     
 
-    def handle_unexpected_shutdown(self):
+    def handle_unexpected_shutdown(self, timestamp, line):
         """Handle unexpected shutdown by alerting the user"""
-        print_formatted_text(ANSI(f"\033[1;90m{get_timestamp()} \033[33mWARNING\033[0m  The server has shut down unexpectedly."))
+        if self.running:
+            print_formatted_text(ANSI(add_colour(timestamp, line)))
 
 
-    def handle_discord_output(self, line):
+    def handle_discord_output(self, timestamp, line):
         """Handle discord output log messages by printing them to the CLI."""
         if self.running:
-            print_formatted_text(ANSI(process_line(line)))
+            print_formatted_text(ANSI(add_colour(timestamp, line)))
+
+
+    def log_print(self, line):
+        """Prints to the screen with colour codes, and prints to the log without colour codes"""
+        timestamp = get_timestamp()
+        print_formatted_text(ANSI(f"\033[1;90m{timestamp} \033[35mCLI\033[0m      {line}"))
+        self.automation.logger.log(f"{timestamp} CLI      {line}")
+    
+
+    def just_print(self, line):
+        """Just prints to the screen with colour codes"""
+        print_formatted_text(ANSI(f"\033[1;90m{get_timestamp()} \033[35mCLI\033[0m      {line}"))
 
 
     def start(self):
         """Start the command-line interface loop."""
         session = PromptSession()
         # Starting print messages for CLI
-        print_formatted_text(ANSI(add_timestamp("Type ':help' for a list of built-in commands.")))
-        print_formatted_text(ANSI(add_timestamp(f"Discord bot is {'ENABLED' if self.config.discord_bot else 'DISABLED'}")))
+
+        self.log_print("Type ':help' for a list of built-in commands.")
+        self.log_print(f"Discord bot is {'ENABLED' if self.config.discord_bot else 'DISABLED'}")
         # Main input loop
         while True:
             # Prompt for input
@@ -123,13 +115,13 @@ class CommandLineInterface:
                 # If the bot is not running or is fully started or fully stopped, allow exit
                 if self.bot is None or self.bot is not None and self.bot.bot.is_ready() or self.bot is not None and self.bot.bot.is_closed():
                     if isinstance(e, KeyboardInterrupt):
-                        print(add_timestamp("KeyboardInterrupt received, forcefully exiting CLI..."))
+                        print(self.log_print("KeyboardInterrupt received, forcefully exiting CLI..."))
                     else:
-                        print(add_timestamp("EOF received, forcefully exiting CLI..."))
+                        print(self.log_print("EOF received, forcefully exiting CLI..."))
                     self.running = False
                     break
                 else:
-                    print_formatted_text(ANSI(add_timestamp("Cannot forcefully exit the CLI while the Discord bot is still starting.")))
+                    self.log_print("Cannot forcefully exit the CLI while the Discord bot is still starting.")
                     continue
             
             # Built-in CLI commands
@@ -146,52 +138,52 @@ class CommandLineInterface:
                     :restart       Restart the server
                     :exit, :quit   Exit the CLI (and stop the server if running)
                     """
-                    print_formatted_text(ANSI(add_timestamp(help_text.strip())))
+                    self.log_print(help_text.strip())
                 # Stop
                 elif cmd == 'stop':
                     if self.runner.is_running():
-                        print_formatted_text(ANSI(add_timestamp("Stopping server...")))
+                        self.log_print("Stopping server...")
                         self.runner.stop()
                     else:
-                        print_formatted_text(ANSI(add_timestamp("Server is not running.")))
+                        self.log_print("Server is not running.")
                 # Start
                 elif cmd == 'start':
                     if self.runner.is_running():
-                        print_formatted_text(ANSI(add_timestamp("Server is already running.")))
+                        self.log_print("Server is already running.")
                     else:
-                        print_formatted_text(ANSI(add_timestamp("Starting server...")))
+                        self.log_print("Starting server...")
                         self.runner.start()
                 # Restart
                 elif cmd == 'restart':
                     if self.runner.is_running():
-                        print_formatted_text(ANSI(add_timestamp("Restarting server...")))
+                        self.log_print("Restarting server...")
                         self.runner.restart()
                     else:
-                        print_formatted_text(ANSI(add_timestamp("Server is not running, starting server...")))
+                        self.log_print("Server is not running, starting server...")
                         self.runner.start()
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
                     # If the bot is not running or is fully started or fully stopped, allow exit
                     if self.bot is None or self.bot is not None and self.bot.bot.is_ready() or self.bot is not None and self.bot.bot.is_closed():
                         if self.runner.is_running():
-                            print_formatted_text(ANSI(add_timestamp("Stopping server before exit...")))
+                            self.log_print("Stopping server before exit...")
                             self.runner.stop()
-                        print_formatted_text(ANSI(add_timestamp("Exiting CLI...")))
+                        self.log_print("Exiting CLI...")
                         self.running = False
                         break
                     else:
-                        print_formatted_text(ANSI(add_timestamp("Cannot exit the CLI while the Discord bot is still starting.")))
+                        self.log_print("Cannot exit the CLI while the Discord bot is still starting.")
                 else:
-                    print_formatted_text(ANSI(add_timestamp(f"Unknown command '{cmd}'.")))
+                    self.just_print(f"Unknown command '{cmd}'.")
 
             # Normal server command input
             else:
                 # Block blocked CLI commands without prefix
                 words = input_text.lower().split()
                 if words and words[0] in self.BLOCKED_COMMANDS:
-                    print_formatted_text(ANSI(add_timestamp(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")))
+                    self.log_print(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")
                 # Otherwise send it as normal server input
                 elif words and self.runner.is_running():
                     self.runner.send_command(input_text)
                 else:
-                    print_formatted_text(ANSI(add_timestamp("Server is not running, start the server to send commands.")))
+                    self.log_print("Server is not running, start the server to send commands.")

@@ -2,6 +2,7 @@ from output_broadcaster import LineBroadcaster, SignalBroadcaster
 import subprocess
 import threading
 import queue
+from format_helper import get_timestamp, process_line
 
 
 class ServerRunner:
@@ -16,7 +17,7 @@ class ServerRunner:
         self.shutdown_timeout = config.shutdown_timeout
         self.process = None
         self.stdout_broadcaster = LineBroadcaster()
-        self.unexpected_shutdown_broadcaster = SignalBroadcaster()
+        self.unexpected_shutdown_broadcaster = LineBroadcaster()
         self._stdout_thread = None
         self._expected_shutdown = False
 
@@ -60,14 +61,25 @@ class ServerRunner:
     def _read_stdout(self):
         """Internal method run in a separate thread to continuously read stdout lines from the server process and enqueue them for processing."""
         for line in self.process.stdout:
-            self.stdout_broadcaster.publish(line.rstrip())
+            # Strip the newline from the line
+            line = line.rstrip()
+            # Detect and strip no log file prefix (this happens when the server is running two instances on the same port)
+            if line.startswith("NO LOG FILE! - ["):
+                line = line[len("NO LOG FILE! - "):]
+                # Show a warning about this on first detection only once using getattr()
+                if not getattr(process_line, "warned_no_log_file", False):
+                    self.stdout_broadcaster.publish(f"{get_timestamp()} WARNING  ", "Detected 'NO LOG FILE!' prefix in server output. This usually means another server instance is running or the log file is locked. Log output will only appear in the console and not in a file. Subsequent messages will not show this warning.")
+                    process_line.warned_no_log_file = True
+            # Format then broadcast the timestamp and line
+            timestamp, message = process_line(line.rstrip())
+            self.stdout_broadcaster.publish(timestamp, message)
         self.process.stdout.close()
         # Clean up runner state after process exits
         self.process = None
         self._stdout_thread = None
         # If the shutdown was not expected, we alert all subscribers
         if not self._expected_shutdown:
-            self.unexpected_shutdown_broadcaster.publish()
+            self.unexpected_shutdown_broadcaster.publish(f"{get_timestamp()} ERROR    ", "The server has shut down unexpectedly.")
 
 
     def send_command(self, command):
