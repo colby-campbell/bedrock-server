@@ -57,8 +57,8 @@ class CommandLineInterface:
         self.runner = runner
         # Subscribe to the stdout broadcaster and unexpected shutdown broadcaster
         self.runner.stdout_broadcaster.subscribe(self.handle_server_output)
-        self.runner.unexpected_shutdown_broadcaster.subscribe(self.handle_unexpected_shutdown)
         self.automation = automation
+        self.automation.automation_output_broadcaster.subscribe(self.handle_automation_ouput)
         self.bot = bot
         # Subscribe to the discord bot broadcaster if bot is provided
         if self.bot is not None:
@@ -72,10 +72,10 @@ class CommandLineInterface:
         """Handle server output lines by printing them to the CLI."""
         if self.running:
             print_formatted_text(ANSI(add_colour(timestamp, line)))
-    
 
-    def handle_unexpected_shutdown(self, timestamp, line):
-        """Handle unexpected shutdown by alerting the user"""
+
+    def handle_automation_ouput(self, timestamp, line):
+        """Handle automation output by printing it to the CLI."""
         if self.running:
             print_formatted_text(ANSI(add_colour(timestamp, line)))
 

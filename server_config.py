@@ -32,6 +32,7 @@ class ServerConfig:
     backup_location     = "C:\\path\\to\\backups"
     backup_duration     = 7
     shutdown_timeout    = 60
+    crash_limit         = 3
     restart_time        = "03:30"
     discord_bot         = true
     bot_token           = "bot token"
@@ -63,6 +64,7 @@ class ServerConfig:
         self.backup_loc = cfg.get("backup_location")
         self.backup_dur = cfg.get("backup_duration")
         self.shutdown_timeout = cfg.get("shutdown_timeout")
+        self.crash_limit = cfg.get("crash_limit")
         self.restart_time = cfg.get("restart_time")
         self.discord_bot = cfg.get("discord_bot")
         self.bot_token = cfg.get("bot_token")
@@ -127,6 +129,11 @@ class ServerConfig:
             errors.append("shutdown_timeout: missing (required)")
         elif not isinstance(self.shutdown_timeout, int):
             errors.append("shutdown_timeout: must be an integer")
+        # crash_limit
+        if self.crash_limit is None:
+            errors.append("crash_limit: missing (required)")
+        elif not isinstance(self.crash_limit, int):
+            errors.append("crash_limit: must be an integer")
         # restart_time
         if self.restart_time is None:
             errors.append("restart_time: missing (required)")
