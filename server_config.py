@@ -24,7 +24,7 @@ class ServerConfig:
 
     # A sample if no config exists
     SAMPLE_TOML = """\
-    # Sample settings.toml — fill in real paths and values
+    # Sample settings.toml, fill in real paths and values
 
     executable_location = "C:\\path\\to\\bedrock_server.exe"
     log_location        = "C:\\path\\to\\server.log"

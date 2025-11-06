@@ -15,16 +15,10 @@ This will need to manage server automation tasks like
 - Queue or buffer output?
 
 Next to do:
-
-Automatic reboot on unexpected shutdown
-
-Have a crash count list that stores the timestamps of the crash times.
-When the server crashes, add the crash timestamp to the list of crashes and remove any that happens past a 10 minute window
-If the remaining crash #'s are at or above the crash max attempts, then send a CRITICAL error message do not attempt a restart
-
-This should naturally allow the user or discord admin to use the start command to try again with the auto reboot working again
-
-Should the discord bot have like a command to send all the like logs that are like ERROR or higher? or like maybe send the log file? idk
+    - Scheduled restarts
+        - Most likely I will use the same idea as I did years ago, creating a thread and sleeping it until the desired time
+        - This will work just fine for my use-case compared to interval checking (not necessary and a little overkill checking every minute),
+            or a non-standard library (kind of overkill and I don't want another dependency).
 """
 
 
