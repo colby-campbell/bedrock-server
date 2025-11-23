@@ -1,6 +1,7 @@
 import tomllib
 import os
 import sys
+import re
 
 
 class ServerConfig:
@@ -141,12 +142,12 @@ class ServerConfig:
             errors.append("restart_time: must be a string in HH:MM format")
         else:
             try:
-                # TODO: This could be done with regex?
-                nums = [int(num) for num in self.restart_time.split(":")]
-                if len(nums) != 2 or nums[0] < 0 or nums[0] > 24 or nums[1] < 0 or nums[1] > 60:
+                pattern = r'^([01]?[0-9]|2[0-3]):([0-5][0-9])$'
+                match = re.match(pattern, self.restart_time)
+                if not match:
                     errors.append(f"restart_time: {self.restart_time}: invalid time")
                 else:
-                    self.restart_time = nums
+                    self.restart_time = [int(match.group(1)), int(match.group(2))]
             except ValueError:
                 errors.append(f"restart_time: {self.restart_time}: cannot contain non-integer numbers")
         # discord_bot
