@@ -57,4 +57,5 @@ if __name__ == "__main__":
 
     # Start the server and CLI
     runner.start()
+    automation.start()
     cli.start()
