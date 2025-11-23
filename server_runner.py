@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from output_broadcaster import LineBroadcaster, SignalBroadcaster
 import subprocess
 import threading
@@ -20,6 +21,21 @@ class ServerRunner:
         self.unexpected_shutdown_broadcaster = LineBroadcaster()
         self._stdout_thread = None
         self._expected_shutdown = False
+        # We are using a RLock instead of a regular Lock to allow nested locking within the same thread
+        self._lock = threading.RLock()
+
+
+    @contextmanager
+    def lock(self):
+        """Context manager for acquiring and releasing the lock. This allows our special lock to be used in 'with' statements."""
+        # Acquire the lock for thread-safe operations
+        self._lock.acquire()
+        try:
+            # Code in the 'with' block runs here (the critical section)
+            yield
+        finally:
+            # Always release, even if there is an exception
+            self._lock.release()
 
 
     def start(self):
@@ -28,24 +44,25 @@ class ServerRunner:
         Raises:
             RuntimeError: If the server is already running.
         """
-        if self.process:
-            raise RuntimeError("Server is already running")
+        with self._lock:
+            if self.process:
+                raise RuntimeError("Server is already running")
 
-        self._expected_shutdown = False
+            self._expected_shutdown = False
 
-        # Start the server process
-        self.process = subprocess.Popen(
-            [self.executable_loc],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            bufsize=1
-        )
+            # Start the server process
+            self.process = subprocess.Popen(
+                [self.executable_loc],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                bufsize=1
+            )
 
-        # Start a thread to read stdout
-        self._stdout_thread = threading.Thread(target=self._read_stdout, daemon=True)
-        self._stdout_thread.start()
+            # Start a thread to read stdout
+            self._stdout_thread = threading.Thread(target=self._read_stdout, daemon=True)
+            self._stdout_thread.start()
 
 
     def is_running(self):
@@ -55,7 +72,8 @@ class ServerRunner:
             bool: True if running, False otherwise.
         """
         # Verify self.process exists and the process is still active (self.process.poll() returns None while running)
-        return self.process and self.process.poll() is None
+        with self._lock:
+            return self.process and self.process.poll() is None
 
 
     def _read_stdout(self):
@@ -90,26 +108,13 @@ class ServerRunner:
         Raises:
             RuntimeError: If the server is not currently running.
         """
-        if not self.is_running():
-            raise RuntimeError("Server is not running")
-        # Send a command to the server's stdin and immediately flush it
-        self.process.stdin.write(command + "\n")
-        self.process.stdin.flush()
-
-
-    def get_output_line(self, timeout=None):
-        """
-        Retrieve the next line of output from the server stdout queue.
-        Args:
-            timeout (float or None): How long to wait for a line. None waits indefinitely, 0 for a non-blocking call.
-        Returns:
-            line (str or None): The next line from stdout, or None if the queue is empty.
-        """
-        try:
-            return self.stdout_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
-        
+        with self._lock:
+            if not self.is_running():
+                raise RuntimeError("Server is not running")
+            # Send a command to the server's stdin and immediately flush it
+            self.process.stdin.write(command + "\n")
+            self.process.stdin.flush()
+    
     
     def stop(self):
         """
@@ -117,22 +122,23 @@ class ServerRunner:
         Raises:
             RuntimeError: If the server is not currently running.
         """
-        if not self.is_running():
-            raise RuntimeError("Server is not running")
-        # Indicate that this was a expected shutdown
-        self._expected_shutdown = True
-        # Attempt to close the process properly
-        self.send_command("stop")
-        try:
-            # Wait for the process to exit gracefully
-            self.process.wait(timeout=self.shutdown_timeout)
-        except subprocess.TimeoutExpired:
-            # If the process does not exit in time, kill it
-            self.process.kill()
-            self.process.wait()
-        # Clean up
-        self.process = None
-        self._stdout_thread = None
+        with self._lock:
+            if not self.is_running():
+                raise RuntimeError("Server is not running")
+            # Indicate that this was a expected shutdown
+            self._expected_shutdown = True
+            # Attempt to close the process properly
+            self.send_command("stop")
+            try:
+                # Wait for the process to exit gracefully
+                self.process.wait(timeout=self.shutdown_timeout)
+            except subprocess.TimeoutExpired:
+                # If the process does not exit in time, kill it
+                self.process.kill()
+                self.process.wait()
+            # Clean up
+            self.process = None
+            self._stdout_thread = None
     
 
     def restart(self):
@@ -141,5 +147,6 @@ class ServerRunner:
         Raises:
             RuntimeError: If stopping or starting fails.
         """
-        self.stop()
-        self.start()
+        with self._lock:
+            self.stop()
+            self.start()
