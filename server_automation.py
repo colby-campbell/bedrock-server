@@ -1,7 +1,7 @@
 from buffered_daily_logger import BufferedDailyLogger
 from datetime import datetime, timedelta
 from output_broadcaster import LineBroadcaster
-from format_helper import get_timestamp
+from format_helper import get_prefix, LogLevel
 from time import sleep
 import threading
 
@@ -75,12 +75,12 @@ class ServerAutomation:
                 self.recent_crashes.pop
         # If the length is larger than the crash limit, send an error and do not restart the server
         if len(self.recent_crashes) >= self.config.crash_limit:
-            prefix = get_timestamp() + " CRITICAL "
+            prefix = get_prefix(LogLevel.CRITICAL)
             msg = "Repeated unexpected shutdowns detected. Crash limit exceeded. Server restart attempts halted until manual intervention."
             self.logger.log(prefix + msg)
             self.automation_output_broadcaster.publish(prefix, msg)
         else:
-            prefix = get_timestamp() + " INFO     "
+            prefix = get_prefix(LogLevel.INFO)
             msg = "Automatic restart triggered due to unexpected server shutdown."
             self.logger.log(prefix + msg)
             self.automation_output_broadcaster.publish(prefix, msg)
@@ -100,7 +100,7 @@ class ServerAutomation:
             # Calculate seconds until restart
             seconds_until_restart = (restart_date - now).total_seconds()
 
-            prefix = get_timestamp() + " INFO     "
+            prefix = get_prefix(LogLevel.INFO)
             line = f"Scheduled server restart in {int(seconds_until_restart // 60)} minutes."
             self.logger.log(prefix + line)
             self.automation_output_broadcaster.publish(prefix, line)
@@ -112,7 +112,7 @@ class ServerAutomation:
             sleep(seconds_until_restart)
 
             # Warn users about the restart
-            prefix = get_timestamp() + " INFO     "
+            prefix = get_prefix(LogLevel.INFO)
             line = f"Server will restart in {RESTART_WARNING_MINUTES} minutes. Please prepare to log out."
             self.logger.log(prefix + line)
             self.automation_output_broadcaster.publish(prefix, line)
@@ -121,7 +121,8 @@ class ServerAutomation:
             sleep(RESTART_WARNING_MINUTES * 60)
 
             # Perform the restart
-            prefix = get_timestamp() + " INFO     "
+            
+            prefix = get_prefix(LogLevel.INFO)
             line = "Performing scheduled server restart now."
             self.logger.log(prefix + line)
             self.automation_output_broadcaster.publish(prefix, line)

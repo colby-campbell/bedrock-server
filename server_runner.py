@@ -2,7 +2,7 @@ from output_broadcaster import LineBroadcaster, SignalBroadcaster
 import subprocess
 import threading
 import queue
-from format_helper import get_timestamp, process_line
+from format_helper import process_line, get_prefix, LogLevel
 
 
 class ServerRunner:
@@ -68,7 +68,7 @@ class ServerRunner:
                 line = line[len("NO LOG FILE! - "):]
                 # Show a warning about this on first detection only once using getattr()
                 if not getattr(process_line, "warned_no_log_file", False):
-                    self.stdout_broadcaster.publish(f"{get_timestamp()} WARN     ", "Detected 'NO LOG FILE!' prefix in server output. This usually means another server instance is running or the log file is locked. Log output will only appear in the console and not in a file. Subsequent messages will not show this warning.")
+                    self.stdout_broadcaster.publish(get_prefix(LogLevel.WARN), "Detected 'NO LOG FILE!' prefix in server output. This usually means another server instance is running or the log file is locked. Log output will only appear in the console and not in a file. Subsequent messages will not show this warning.")
                     process_line.warned_no_log_file = True
             # Format then broadcast the timestamp and line
             timestamp, message = process_line(line.rstrip())
@@ -79,7 +79,7 @@ class ServerRunner:
         self._stdout_thread = None
         # If the shutdown was not expected, we alert all subscribers
         if not self._expected_shutdown:
-            self.unexpected_shutdown_broadcaster.publish(f"{get_timestamp()} ERROR    ", "The server has shut down unexpectedly.")
+            self.unexpected_shutdown_broadcaster.publish(get_prefix(LogLevel.ERROR), "The server has shut down unexpectedly.")
 
 
     def send_command(self, command):

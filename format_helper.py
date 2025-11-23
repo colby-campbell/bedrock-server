@@ -8,7 +8,7 @@ SPACING_LENGTH = 9
 
 class LogLevel(enum.Enum):
     INFO = "INFO"
-    WARNING = "WARNING"
+    WARN = "WARN"
     ERROR = "ERROR"
     DEBUG = "DEBUG"
     RAW = "RAW"
