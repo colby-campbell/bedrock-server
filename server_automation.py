@@ -1,3 +1,5 @@
+from pathlib import Path
+import shutil
 from buffered_daily_logger import BufferedDailyLogger
 from datetime import datetime, timedelta
 from output_broadcaster import LineBroadcaster
@@ -8,16 +10,17 @@ import threading
 # Constants
 RESTART_WARNING_MINUTES = 5
 CRASH_DETECTION_WINDOW_MINUTES = 10
+BACKUP_TIMESTAMP_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
 """
 This will need to manage server automation tasks like
-- Scheduled restarts
+- Scheduled restarts (DONE!)
 - Automated Backups
     - Auto-delete old backups based on backup_duration setting
-    - Notify users before backups/restarts
+    - Notify users before backups/restarts (DONE!)
 - Update checks (like for new versions of the server software)
 - Logging (DONE!)
-- Optional reboot on crash or extended server downtime
+- Optional reboot on crash or extended server downtime (DONE! well not the downtime part)
 - Queue or buffer output?
 
 Next to do:
@@ -131,3 +134,107 @@ class ServerAutomation:
                 self.runner.restart()
             else:
                 self.runner.start()
+
+
+    def backup_world_offline(self):
+        """Perform a backup of the world when the server is offline."""
+        # Use the runner's lock to ensure atomic operation
+        with self.runner.lock():
+            # Refuse to backup if the server is running
+            if self.runner.is_running():
+                prefix = get_prefix(LogLevel.ERROR)
+                line = "Cannot perform offline backup while server is running."
+                self.logger.log(prefix + line)
+                self.automation_output_broadcaster.publish(prefix, line)
+                return
+            
+            # Prepare paths to backup
+            world_dir = Path(self.config.world_loc)
+            backup_root = Path(self.config.backup_loc)
+            backup_root.mkdir(parents=True, exist_ok=True)
+
+            timestamp = time.strftime(BACKUP_TIMESTAMP_FORMAT)
+            dest_dir = backups_root / f"offline_world_backup_{timestamp}"
+            temp_dir = backup_root / f".tmp_world_backup_{timestamp}"
+
+            prefix = get_prefix(LogLevel.INFO)
+            line = f"Starting offline world backup to {dest_dir.name}"
+            self.logger.log(prefix + line)
+            self.automation_output_broadcaster.publish(prefix, line)
+
+            # Copy the world directory to a temporary location first so incomplete backups are not stored
+            try:
+                shutil.copytree(world_dir, temp_dir)
+                temp_dir.rename(dest_dir)
+            except Exception as e:
+                # Remove the temporary directory if the backup fails
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                # Log an error message if the backup fails
+                prefix = get_prefix(LogLevel.ERROR)
+                # TODO: Improve error message with exception details
+                prefix = get_prefix(LogLevel.ERROR)
+                line = f"Offline world backup failed: {e}"
+                self.logger.log(prefix + line)
+                self.automation_output_broadcaster.publish(prefix, line)
+                return
+            
+            # Compress the backup directory
+            # TODO: Add a config option for compression
+            final_path = dest_dir
+            try:
+                shutil.make_archive(dest_dir.name, 'zip', root_dir=dest_dir)
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                final_path = dest_dir.with_suffix('.zip')
+            except Exception as e:
+                # Remove the zip file if compression fails
+                if final_path.exists():
+                    final_path.unlink(missing_ok=True)
+                # Log an error message if compression fails
+                prefix = get_prefix(LogLevel.ERROR)
+                line = f"Offline world backup compression failed: {e}"
+                self.logger.log(prefix + line)
+                self.automation_output_broadcaster.publish(prefix, line)
+                return
+            
+            prefix = get_prefix(LogLevel.INFO)
+            line = f"Successfully completed offline world backup: {final_path.name}"
+            self.logger.log(prefix + line)
+            self.automation_output_broadcaster.publish(prefix, line)
+
+            # Prune old backups from the backup directory
+            self._prune_old_backups(backup_root)
+
+            # Return the final backup path for further processing if needed
+            return final_path
+
+
+    def _prune_old_backups(self, backup_root: Path):
+        """Internal method to delete old backups based on the backup duration setting."""
+        cutoff_time = datetime.now() - timedelta(days=self.config.backup_duration_days)
+        for backup in backup_root.iterdir():
+            try:
+                backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
+            except Exception as e:
+            # TODO: Improve error message with exception details
+                prefix = get_prefix(LogLevel.ERROR)
+                line = f"Failed to get backup timestamp for backup {backup.name}: {e}"
+                self.logger.log(prefix + line)
+                self.automation_output_broadcaster.publish(prefix, line)
+                continue
+            if backup_time < cutoff_time:
+                try:
+                    if backup.is_dir():
+                        shutil.rmtree(backup)
+                    else:
+                        backup.unlink()
+                    prefix = get_prefix(LogLevel.INFO)
+                    line = f"Deleted old backup: {backup.name}"
+                    self.logger.log(prefix + line)
+                    self.automation_output_broadcaster.publish(prefix, line)
+                except Exception as e:
+                    # TODO: Improve error message with exception details
+                    prefix = get_prefix(LogLevel.ERROR)
+                    line = f"Failed to delete old backup {backup.name}: {e}"
+                    self.logger.log(prefix + line)
+                    self.automation_output_broadcaster.publish(prefix, line)
