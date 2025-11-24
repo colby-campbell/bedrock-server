@@ -1,7 +1,7 @@
-from server_config import ServerConfig
-from server_runner import ServerRunner
-from server_automation import ServerAutomation
-from discord_bot import DiscordBot
+from core import ServerConfig
+from core import ServerRunner
+from core import ServerAutomation
+from bot import DiscordBot
 from cli import CommandLineInterface
 import threading
 import atexit

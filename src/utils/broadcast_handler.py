@@ -1,7 +1,8 @@
 import logging
-from format_helper import process_line
+from .format_helper import process_line
 
 
+# This could be moved to bot as it is only used there; however, I will leave it here for now.
 class BroadcastHandler(logging.Handler):
     """Custom logging handler that broadcasts log messages to an OutputBroadcaster."""
     def __init__(self, broadcaster, logger):

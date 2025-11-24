@@ -1,11 +1,9 @@
-from pathlib import Path
-import shutil
-from buffered_daily_logger import BufferedDailyLogger
+from utils import BufferedDailyLogger, LineBroadcaster, get_prefix, LogLevel
 from datetime import datetime, timedelta
-from output_broadcaster import LineBroadcaster
-from format_helper import get_prefix, LogLevel
+from pathlib import Path
 from time import sleep
 import threading
+import shutil
 
 # Constants
 RESTART_WARNING_MINUTES = 5
@@ -15,8 +13,8 @@ BACKUP_TIMESTAMP_FORMAT = "%Y-%m-%d_%H-%M-%S"
 """
 This will need to manage server automation tasks like
 - Scheduled restarts (DONE!)
-- Automated Backups
-    - Auto-delete old backups based on backup_duration setting
+- Automated Backups (DONE!)
+    - Auto-delete old backups based on backup_duration setting (DONE!)
     - Notify users before backups/restarts (DONE!)
 - Update checks (like for new versions of the server software)
 - Logging (DONE!)
@@ -45,11 +43,13 @@ class ServerAutomation:
         # Create a list of crashes
         self.recent_crashes = []
 
+
     def start(self):
         """Start the server automation tasks that require threads."""
         # Start the scheduled restart thread
         scheduled_restart_thread = threading.Thread(target=self._scheduled_restart, daemon=True)
         scheduled_restart_thread.start()
+
 
     def handle_server_output(self, timestamp, line):
         """Process server output lines for automation triggers.
@@ -58,6 +58,7 @@ class ServerAutomation:
             line (str): The output line from the server.
         """
         self.logger.log(timestamp + line)
+
 
     def handle_unexpected_shutdown(self, timestamp, line):
         """Handle unexpected server shutdowns.
@@ -89,6 +90,7 @@ class ServerAutomation:
             self.automation_output_broadcaster.publish(prefix, msg)
             self.runner.start()
     
+
     def _scheduled_restart(self):
         """Internal method to handle scheduled restarts."""
         while True:
@@ -130,10 +132,42 @@ class ServerAutomation:
             self.logger.log(prefix + line)
             self.automation_output_broadcaster.publish(prefix, line)
 
-            if self.runner.is_running():
-                self.runner.restart()
-            else:
+            with self.runner.lock():
+                if self.runner.is_running():
+                    self.runner.stop()
+                self.backup_world_offline()
                 self.runner.start()
+
+
+    def _prune_old_backups(self, backup_root: Path):
+        """Internal method to delete old backups based on the backup duration setting."""
+        cutoff_time = datetime.now() - timedelta(days=self.config.backup_duration_days)
+        for backup in backup_root.iterdir():
+            try:
+                backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
+            except Exception as e:
+            # TODO: Improve error message with exception details
+                prefix = get_prefix(LogLevel.ERROR)
+                line = f"Failed to get backup timestamp for backup {backup.name}: {e}"
+                self.logger.log(prefix + line)
+                self.automation_output_broadcaster.publish(prefix, line)
+                continue
+            if backup_time < cutoff_time:
+                try:
+                    if backup.is_dir():
+                        shutil.rmtree(backup)
+                    else:
+                        backup.unlink()
+                    prefix = get_prefix(LogLevel.INFO)
+                    line = f"Deleted old backup: {backup.name}"
+                    self.logger.log(prefix + line)
+                    self.automation_output_broadcaster.publish(prefix, line)
+                except Exception as e:
+                    # TODO: Improve error message with exception details
+                    prefix = get_prefix(LogLevel.ERROR)
+                    line = f"Failed to delete old backup {backup.name}: {e}"
+                    self.logger.log(prefix + line)
+                    self.automation_output_broadcaster.publish(prefix, line)
 
 
     def backup_world_offline(self):
@@ -209,32 +243,16 @@ class ServerAutomation:
             return final_path
 
 
-    def _prune_old_backups(self, backup_root: Path):
-        """Internal method to delete old backups based on the backup duration setting."""
-        cutoff_time = datetime.now() - timedelta(days=self.config.backup_duration_days)
-        for backup in backup_root.iterdir():
-            try:
-                backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
-            except Exception as e:
-            # TODO: Improve error message with exception details
-                prefix = get_prefix(LogLevel.ERROR)
-                line = f"Failed to get backup timestamp for backup {backup.name}: {e}"
-                self.logger.log(prefix + line)
-                self.automation_output_broadcaster.publish(prefix, line)
-                continue
-            if backup_time < cutoff_time:
-                try:
-                    if backup.is_dir():
-                        shutil.rmtree(backup)
-                    else:
-                        backup.unlink()
-                    prefix = get_prefix(LogLevel.INFO)
-                    line = f"Deleted old backup: {backup.name}"
-                    self.logger.log(prefix + line)
-                    self.automation_output_broadcaster.publish(prefix, line)
-                except Exception as e:
-                    # TODO: Improve error message with exception details
-                    prefix = get_prefix(LogLevel.ERROR)
-                    line = f"Failed to delete old backup {backup.name}: {e}"
-                    self.logger.log(prefix + line)
-                    self.automation_output_broadcaster.publish(prefix, line)
+    def backup_world_online(self):
+        """Perform a backup of the world when the server is online."""
+        # to be implemented
+        pass
+
+
+    def smart_backup(self):
+        """Perform a backup of the world, choosing online or offline based on server state."""
+        with self.runner.lock():
+            if self.runner.is_running():
+                self.backup_world_online()
+            else:
+                self.backup_world_offline()

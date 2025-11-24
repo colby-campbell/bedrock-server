@@ -1,7 +1,7 @@
 from prompt_toolkit import prompt, print_formatted_text, ANSI, PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
+from utils import get_timestamp
 import re
-from format_helper import get_timestamp
 
 
 def add_colour(prefix, message):
@@ -20,7 +20,7 @@ def add_colour(prefix, message):
                 ansi_code = "\033[36m"  # Cyan for debug
             case "INFO":
                 ansi_code = "\033[34m"  # Blue for info
-            case "WARNING":
+            case "WARN":
                 ansi_code = "\033[33m"  # Yellow for warning
             case "ERROR":
                 ansi_code = "\033[31m"  # Red for error

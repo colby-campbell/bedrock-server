@@ -1,9 +1,8 @@
+from utils import BroadcastHandler, LineBroadcaster
 import asyncio
 import discord
 import logging
 from discord.ext import commands
-from output_broadcaster import LineBroadcaster
-from broadcast_handler import BroadcastHandler
 
 
 ## Command to check if the user has admin privileges
