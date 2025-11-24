@@ -111,18 +111,19 @@ class CommandLineInterface:
             try:
                 with patch_stdout():
                     input_text = session.prompt('bedrock-server> ').strip()
-            except (EOFError, KeyboardInterrupt) as e:
+            except EOFError:
                 # If the bot is not running or is fully started or fully stopped, allow exit
                 if self.bot is None or self.bot is not None and self.bot.bot.is_ready() or self.bot is not None and self.bot.bot.is_closed():
-                    if isinstance(e, KeyboardInterrupt):
-                        print(self.log_print("KeyboardInterrupt received, forcefully exiting CLI..."))
-                    else:
-                        print(self.log_print("EOF received, forcefully exiting CLI..."))
+                    self.log_print("EOF received, forcefully exiting CLI...")
                     self.running = False
                     break
                 else:
                     self.log_print("Cannot forcefully exit the CLI while the Discord bot is still starting.")
                     continue
+            except KeyboardInterrupt:
+                # Handle Ctrl+C gracefully
+                self.just_print("KeyboardInterrupt received, ignoring input.")
+                continue
             
             # Built-in CLI commands
             if input_text.startswith(':'):
@@ -138,7 +139,7 @@ class CommandLineInterface:
                     :restart       Restart the server
                     :exit, :quit   Exit the CLI (and stop the server if running)
                     """
-                    self.log_print(help_text.strip())
+                    self.just_print(help_text.strip())
                 # Stop
                 elif cmd == 'stop':
                     if self.runner.is_running():
@@ -172,7 +173,7 @@ class CommandLineInterface:
                         self.running = False
                         break
                     else:
-                        self.log_print("Cannot exit the CLI while the Discord bot is still starting.")
+                        self.just_print("Cannot exit the CLI while the Discord bot is still starting.")
                 else:
                     self.just_print(f"Unknown command '{cmd}'.")
 
@@ -181,9 +182,9 @@ class CommandLineInterface:
                 # Block blocked CLI commands without prefix
                 words = input_text.lower().split()
                 if words and words[0] in self.BLOCKED_COMMANDS:
-                    self.log_print(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")
+                    self.just_print(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")
                 # Otherwise send it as normal server input
                 elif words and self.runner.is_running():
                     self.runner.send_command(input_text)
                 else:
-                    self.log_print("Server is not running, start the server to send commands.")
+                    self.just_print("Server is not running, start the server to send commands.")
