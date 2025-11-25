@@ -162,6 +162,10 @@ class CommandLineInterface:
                     else:
                         self.log_print("Server is not running, starting server...")
                         self.runner.start()
+                # Backup
+                elif cmd == 'backup':
+                    self.log_print("Starting world backup...")
+                    self.automation.smart_backup()
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
                     # If the bot is not running or is fully started or fully stopped, allow exit

@@ -1,5 +1,9 @@
 # Design Decisions
 
+## Why Python?
+
+Python was chosen for its simplicity, readability, and extensive libraries. Its support for asynchronous programming is particularly beneficial for handling multiple tasks concurrently, such as managing server processes and responding to Discord events. Additionally, Python's cross-platform nature ensures that the automation system can run on various operating systems without significant modifications.
+
 ## Modular Package Structure
 The project is divided into four main packages: `core`, `bot`, `cli`, and `utils`. This modular structure allows for clear separation of concerns:
 - `core`: Manages the server process, configuration, and automation tasks.

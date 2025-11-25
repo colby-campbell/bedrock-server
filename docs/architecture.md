@@ -37,3 +37,8 @@ CommandLineInterface (CLI with prompt_toolkit)
 ## Thread Safety
 - The `ServerRunner` class employs `threading.RLock()` to ensure thread-safe operations on the server process.
 - The lock is also exposed via a context manager, allowing external components like `ServerAutomation` to perform multi-step operations atomically (e.g., stopping the server, performing a backup, and restarting the server) without race conditions.
+
+## Deque-based Recent Lines Buffer
+- `ServerAutomation` maintains a deque buffer of recent server output lines to monitor for specific events (e.g., save completion) during automated tasks. 
+- Using a dequeue with a fixed maxiumum length ensures efficient memory usage while retaining the most relevant output for event detection.
+- Every item is appened to the left side of the deque, ensuring the most recent lines are always at the front for quick access.

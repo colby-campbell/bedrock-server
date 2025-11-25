@@ -4,7 +4,7 @@ This project is a Python automation system designed to manage a Minecraft Bedroc
 
 ## Origins
 
-This project was created to streamline the management of a Minecraft Bedrock Dedicated Server. The goal was to automate routine tasks, provide remote control capabilities via Discord, and offer a user-friendly CLI for local server administration. Inspired by the same project I had worked years ago, this new version is written with the best practices in mind, focusing on modularity, thread safety, and maintainability.
+This project was created to streamline the management of a Minecraft Bedrock Dedicated Server. The goal was to automate routine tasks, provide remote control capabilities via Discord, and offer a user-friendly CLI for local server administration. Inspired by the same project I had worked on years ago, this new version is written with the best practices in mind, focusing on modularity, thread safety, and maintainability.
 
 ## Key Features
 
