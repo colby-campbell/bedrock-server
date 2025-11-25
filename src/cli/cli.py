@@ -138,6 +138,7 @@ class CommandLineInterface:
                     :stop          Stop the server
                     :restart       Restart the server
                     :backup        Create a world backup
+                    :list          List existing backups
                     :mark <backup_name | latest | YYYY-MM-DD>
                                    Protect backup(s) from automatic deletion
                     :unmark <backup_name | latest | YYYY-MM-DD>
@@ -171,6 +172,9 @@ class CommandLineInterface:
                 elif cmd == 'backup':
                     self.log_print("Starting world backup...")
                     self.automation.smart_backup()
+                # List
+                elif cmd == 'list':
+                    self.automation.list_backups()
                 # Mark
                 elif cmd.startswith('mark'):
                     args = cmd.split(maxsplit=1)

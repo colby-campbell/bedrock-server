@@ -370,9 +370,108 @@ class ServerAutomation:
                 self.backup_world_offline()
 
 
-    def mark(identifier):
-        pass
+    def list_backups(self):
+        """List existing backups in the backup directory."""
+        backup_root = Path(self.config.backup_loc)
+
+        backups = []
+        if backup_root.exists() and backup_root.is_dir():
+            for backup in backup_root.iterdir():
+                # Only list valid backups
+                if backup.name.startswith(OFFLINE_BACKUP_PREFIX) or backup.name.startswith(ONLINE_BACKUP_PREFIX) or backup.name.startswith(PROTECTED_BACKUP_PREFIX):
+                    backups.append(backup.name)
+        if backups:
+            # TODO: Format output better
+            self.log_print(LogLevel.INFO, f"Existing backups: {', '.join(backups)}")
+        else:
+            self.log_print(LogLevel.INFO, "No backups found.")
 
 
-    def unmark(identifier):
-        pass
+    def mark_backup(self, identifier):
+        """Mark a backup as protected from automatic deletion."""
+        backup_root = Path(self.config.backup_loc)
+        if identifier.lower() == "latest":
+            # Find the latest backup
+            latest_backup = None
+            latest_time = None
+            for backup in backup_root.iterdir():
+                if backup.name.startswith(OFFLINE_BACKUP_PREFIX) or backup.name.startswith(ONLINE_BACKUP_PREFIX):
+                    backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
+                    if latest_time is None or backup_time > latest_time:
+                        latest_time = backup_time
+                        latest_backup = backup
+            if latest_backup is not None:
+                protected_name = PROTECTED_BACKUP_PREFIX + "_" + latest_backup.name
+                latest_backup.rename(backup_root / protected_name)
+                self.log_print(LogLevel.INFO, f"Marked latest backup as protected: {protected_name}")
+            else:
+                self.log_print(LogLevel.WARN, "No backups found to mark as protected.")
+        elif re.match(r'^\d{4}-\d{2}-\d{2}$', identifier):
+            # Mark all backups from the given date
+            date_str = identifier
+            marked_backups = []
+            for backup in backup_root.iterdir():
+                if backup.name.startswith(OFFLINE_BACKUP_PREFIX) or backup.name.startswith(ONLINE_BACKUP_PREFIX):
+                    backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
+                    if backup_time.strftime("%Y-%m-%d") == date_str:
+                        protected_name = PROTECTED_BACKUP_PREFIX + "_" + backup.name
+                        backup.rename(backup_root / protected_name)
+                        marked_backups.append(protected_name)
+            if marked_backups:
+                self.log_print(LogLevel.INFO, f"Marked backups from {date_str} as protected: {', '.join(marked_backups)}")
+            else:
+                self.log_print(LogLevel.WARN, f"No backups found from date {date_str} to mark as protected.")
+        else:
+            # Mark a specific backup by name
+            backup_path = backup_root / identifier
+            if backup_path.exists() and (backup_path.name.startswith(OFFLINE_BACKUP_PREFIX) or backup_path.name.startswith(ONLINE_BACKUP_PREFIX)):
+                protected_name = PROTECTED_BACKUP_PREFIX + "_" + backup_path.name
+                backup_path.rename(backup_root / protected_name)
+                self.log_print(LogLevel.INFO, f"Marked backup as protected: {protected_name}")
+            else:
+                self.log_print(LogLevel.WARN, f"Backup '{identifier}' not found to mark as protected.")
+
+
+    def unmark_backup(self, identifier):
+        """Unmark a backup from being protected from automatic deletion."""
+        backup_root = Path(self.config.backup_loc)
+        if identifier.lower() == "latest":
+            # Find the latest backup
+            latest_backup = None
+            latest_time = None
+            for backup in backup_root.iterdir():
+                if backup.name.startswith(PROTECTED_BACKUP_PREFIX + "_" + OFFLINE_BACKUP_PREFIX) or backup.name.startswith(PROTECTED_BACKUP_PREFIX + "_" + ONLINE_BACKUP_PREFIX):
+                    backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
+                    if latest_time is None or backup_time > latest_time:
+                        latest_time = backup_time
+                        latest_backup = backup
+            if latest_backup is not None:
+                unprotected_name = latest_backup.name[len(PROTECTED_BACKUP_PREFIX) + 1:]
+                latest_backup.rename(backup_root / unprotected_name)
+                self.log_print(LogLevel.INFO, f"Unmarked latest backup as protected: {unprotected_name}")
+            else:
+                self.log_print(LogLevel.WARN, "No backups found to unmark as protected.")
+        elif re.match(r'^\d{4}-\d{2}-\d{2}$', identifier):
+            # Unmark all backups from the given date
+            date_str = identifier
+            unmarked_backups = []
+            for backup in backup_root.iterdir():
+                if backup.name.startswith(PROTECTED_BACKUP_PREFIX + "_" + OFFLINE_BACKUP_PREFIX) or backup.name.startswith(PROTECTED_BACKUP_PREFIX + "_" + ONLINE_BACKUP_PREFIX):
+                    backup_time = datetime.fromtimestamp(backup.stat().st_mtime)
+                    if backup_time.strftime("%Y-%m-%d") == date_str:
+                        unprotected_name = backup.name[len(PROTECTED_BACKUP_PREFIX) + 1:]
+                        backup.rename(backup_root / unprotected_name)
+                        unmarked_backups.append(unprotected_name)
+            if unmarked_backups:
+                self.log_print(LogLevel.INFO, f"Unmarked backups from {date_str} as protected: {', '.join(unmarked_backups)}")
+            else:
+                self.log_print(LogLevel.WARN, f"No backups found from date {date_str} to unmark as protected.")
+        else:
+            # Unmark a specific backup by name
+            backup_path = backup_root / identifier
+            if backup_path.exists() and (backup_path.name.startswith(PROTECTED_BACKUP_PREFIX + "_" + OFFLINE_BACKUP_PREFIX) or backup_path.name.startswith(PROTECTED_BACKUP_PREFIX + "_" + ONLINE_BACKUP_PREFIX)):
+                unprotected_name = backup_path.name[len(PROTECTED_BACKUP_PREFIX) + 1:]
+                backup_path.rename(backup_root / unprotected_name)
+                self.log_print(LogLevel.INFO, f"Unmarked backup as protected: {unprotected_name}")
+            else:
+                self.log_print(LogLevel.WARN, f"Backup '{identifier}' not found to unmark as protected.")
