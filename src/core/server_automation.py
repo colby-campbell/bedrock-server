@@ -22,14 +22,9 @@ SAVE_QUERY_TIMEOUT_SECONDS = 10
 
 """
 This will need to manage server automation tasks like
-- Scheduled restarts (DONE!)
-- Automated Backups (DONE!)
-    - Auto-delete old backups based on backup_duration setting (DONE!)
-    - Notify users before backups/restarts (DONE!)
 - Update checks (like for new versions of the server software)
-- Logging (DONE!)
-- Optional reboot on crash or extended server downtime (DONE! well not the downtime part)
-- Queue or buffer output?
+- Mark command that marks backups as protected from deletion (Unmark command too)
+
 
 Next to do:
     - Scheduled restarts
@@ -154,7 +149,10 @@ class ServerAutomation:
 
 
     def _prune_old_backups(self, backup_root: Path):
-        """Internal method to delete old backups based on the backup duration setting."""
+        """Internal method to delete old backups based on the backup duration setting.
+        Args:
+            backup_root (Path): The root directory where backups are stored.
+        """
         self.log_print(LogLevel.INFO, "Pruning old backups...")
         cutoff_time = datetime.now() - timedelta(days=self.config.backup_dur)
         pruned = []
@@ -244,18 +242,7 @@ class ServerAutomation:
 
     # TODO: should I give errors if something fails?
     def backup_world_online(self):
-        """Perform a backup of the world while the server remains online.
-
-        Protocol (Bedrock server commands):
-        1. send 'save hold'   -> server begins holding world state for a consistent snapshot
-        2. wait for confirmation output (best-effort pattern match)
-        3. send 'save query'  -> server reports completion (optionally lists files; we rely on timing)
-        4. copy world directory atomically (temp -> final -> optional compression)
-        5. send 'save resume' -> release hold so server can continue normal writes
-
-        Returns:
-            Path | None: Final backup path if successful, else None.
-        """
+        """Perform a backup of the world while the server remains online."""
         # Use the runner's lock to ensure atomic operation
         with self.runner.lock():
             # Refuse to backup if the server is not running
@@ -381,3 +368,11 @@ class ServerAutomation:
                 self.backup_world_online()
             else:
                 self.backup_world_offline()
+
+
+    def mark(identifier):
+        pass
+
+
+    def unmark(identifier):
+        pass

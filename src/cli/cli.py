@@ -137,6 +137,11 @@ class CommandLineInterface:
                     :start         Start the Minecraft Bedrock server
                     :stop          Stop the server
                     :restart       Restart the server
+                    :backup        Create a world backup
+                    :mark <backup_name | latest | YYYY-MM-DD>
+                                   Protect backup(s) from automatic deletion
+                    :unmark <backup_name | latest | YYYY-MM-DD>
+                                   Unprotect backup(s) from automatic deletion
                     :exit, :quit   Exit the CLI (and stop the server if running)
                     """
                     self.just_print(help_text.strip())
@@ -166,6 +171,22 @@ class CommandLineInterface:
                 elif cmd == 'backup':
                     self.log_print("Starting world backup...")
                     self.automation.smart_backup()
+                # Mark
+                elif cmd.startswith('mark'):
+                    args = cmd.split(maxsplit=1)
+                    if len(args) == 2:
+                        backup_identifier = args[1].strip()
+                        self.automation.mark_backup(backup_identifier)
+                    else:
+                        self.just_print("Usage: :mark <backup_name | latest | YYYY-MM-DD>")
+                # Unmark
+                elif cmd.startswith('unmark'):
+                    args = cmd.split(maxsplit=1)
+                    if len(args) == 2:
+                        backup_identifier = args[1].strip()
+                        self.automation.unmark_backup(backup_identifier)
+                    else:
+                        self.just_print("Usage: :unmark <backup_name | latest | YYYY-MM-DD>")
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
                     # If the bot is not running or is fully started or fully stopped, allow exit
