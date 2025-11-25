@@ -143,6 +143,8 @@ class CommandLineInterface:
                                    Protect backup(s) from automatic deletion
                     :unmark <backup_name | latest | YYYY-MM-DD>
                                    Unprotect backup(s) from automatic deletion
+                    :switch <backup_name>
+                                   Switch the world to the specified backup
                     :exit, :quit   Exit the CLI (and stop the server if running)
                     """
                     self.just_print(help_text.strip())
@@ -191,6 +193,15 @@ class CommandLineInterface:
                         self.automation.unmark_backup(backup_identifier)
                     else:
                         self.just_print("Usage: :unmark <backup_name | latest | YYYY-MM-DD>")
+                # Switch to backup
+                elif cmd.startswith('switch'):
+                    args = cmd.split(maxsplit=1)
+                    if len(args) == 2:
+                        backup_name = args[1].strip()
+                        self.automation.switch_to_backup_world(backup_name)
+                    else:
+                        self.just_print("Usage: :switch <backup_name>")
+
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
                     # If the bot is not running or is fully started or fully stopped, allow exit

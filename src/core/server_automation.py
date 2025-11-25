@@ -23,14 +23,9 @@ SAVE_QUERY_TIMEOUT_SECONDS = 10
 """
 This will need to manage server automation tasks like
 - Update checks (like for new versions of the server software)
-- Mark command that marks backups as protected from deletion (Unmark command too)
 
 
 Next to do:
-    - Scheduled restarts
-        - Most likely I will use the same idea as I did years ago, creating a thread and sleeping it until the desired time
-        - This will work just fine for my use-case compared to interval checking (not necessary and a little overkill checking every minute),
-            or a non-standard library (kind of overkill and I don't want another dependency).
 """
 
 
@@ -184,8 +179,11 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, "No old backups to prune.")
 
 
-    def backup_world_offline(self):
-        """Perform a backup of the world when the server is offline."""
+    def backup_world_offline(self, skip_pruning: bool = False):
+        """Perform a backup of the world when the server is offline.
+        Args:
+            skip_pruning (bool): If True, skip pruning old backups after creating the backup.
+        """
         # Use the runner's lock to ensure atomic operation
         with self.runner.lock():
             # Refuse to backup if the server is running
@@ -202,7 +200,7 @@ class ServerAutomation:
             dest_dir = backup_root / f"{OFFLINE_BACKUP_PREFIX}_{timestamp}"
             temp_dir = backup_root / f"{TEMPORARY_BACKUP_PREFIX}_{OFFLINE_BACKUP_PREFIX}_{timestamp}"
 
-            self.log_print(LogLevel.INFO, f"Starting offline world backup to {dest_dir.name}")
+            self.log_print(LogLevel.INFO, f"Initiating offline backup to '{dest_dir.name}'")
 
             # Copy the world directory to a temporary location first so incomplete backups are not stored
             try:
@@ -214,7 +212,7 @@ class ServerAutomation:
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 # Log an error message if the backup fails
                 # TODO: Improve error message with exception details
-                self.log_print(LogLevel.ERROR, f"Offline world backup failed: {e}")
+                self.log_print(LogLevel.ERROR, f"Offline backup failed: {e}")
                 return None
 
             # Compress the backup directory
@@ -234,15 +232,19 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, f"Successfully completed offline world backup: {final_path.name}")
 
             # Prune old backups from the backup directory
-            self._prune_old_backups(backup_root)
+            if not skip_pruning:
+                self._prune_old_backups(backup_root)
 
             # Return the final backup path for further processing if needed
             return final_path
 
 
     # TODO: should I give errors if something fails?
-    def backup_world_online(self):
-        """Perform a backup of the world while the server remains online."""
+    def backup_world_online(self, skip_pruning: bool = False):
+        """Perform a backup of the world while the server remains online.
+        Args:
+            skip_pruning (bool): If True, skip pruning old backups after creating the backup.
+        """
         # Use the runner's lock to ensure atomic operation
         with self.runner.lock():
             # Refuse to backup if the server is not running
@@ -259,7 +261,7 @@ class ServerAutomation:
             dest_dir = backup_root / f"{ONLINE_BACKUP_PREFIX}_{timestamp}"
             temp_dir = backup_root / f"{TEMPORARY_BACKUP_PREFIX}_{ONLINE_BACKUP_PREFIX}_{timestamp}"
 
-            self.log_print(LogLevel.INFO, f"Initiating online backup (hold/query) to {dest_dir.name}, expect ERROR messages indicating a previous save has not been completed.")
+            self.log_print(LogLevel.INFO, f"Initiating online backup to '{dest_dir.name}'; expect ERROR messages indicating a previous save has not been completed.")
 
             # Step 1: save hold
             try:
@@ -356,7 +358,8 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, f"Successfully completed online world backup: {final_path.name}")
 
             # Prune old backups
-            self._prune_old_backups(backup_root)
+            if not skip_pruning:
+                self._prune_old_backups(backup_root)
 
             return final_path
 
@@ -475,3 +478,55 @@ class ServerAutomation:
                 self.log_print(LogLevel.INFO, f"Unmarked backup as protected: {unprotected_name}")
             else:
                 self.log_print(LogLevel.WARN, f"Backup '{identifier}' not found to unmark as protected.")
+
+
+    def switch_to_backup_world(self, backup_name):
+        """Switch the server's world to the specified backup.
+        Args:
+            backup_name (str): The name of the backup to switch to.
+        """
+        with self.runner.lock():
+            # Refuse to switch if the server is running
+            if self.runner.is_running():
+                self.log_print(LogLevel.ERROR, "Cannot switch world while server is running.")
+                return False
+
+            # Prepare paths
+            world_dir = Path(self.config.world_loc)
+            backup_root = Path(self.config.backup_loc)
+            backup_path = backup_root / backup_name
+
+            # Check if the backup exists
+            if not backup_path.exists():
+                self.log_print(LogLevel.ERROR, f"Backup '{backup_name}' does not exist.")
+                return False
+
+            # Make an offline backup of the current world before switching and skip pruning to avoid deleting this backup (edge case)
+            self.log_print(LogLevel.INFO, "Creating offline backup of current world before switching...")
+            self.backup_world_offline(skip_pruning=True)
+
+            # Remove the current world directory
+            self.log_print(LogLevel.INFO, f"Removing current world directory '{world_dir.name}'...")
+            try:
+                shutil.rmtree(world_dir)
+            except Exception as e:
+                self.log_print(LogLevel.ERROR, f"Failed to remove current world directory: {e}")
+                return False
+
+            # Restore the backup to the world directory
+            self.log_print(LogLevel.INFO, f"Restoring backup '{backup_name}' to world directory '{world_dir.name}'...")
+            try:
+                if backup_path.suffix == '.zip':
+                    # Extract the zip archive if the backup is compressed
+                    shutil.unpack_archive(backup_path, extract_dir=world_dir.parent)
+                    extracted_dir = world_dir.parent / backup_path.stem
+                    extracted_dir.rename(world_dir)
+                else:
+                    # Copy the backup directory if it is not compressed
+                    shutil.copytree(backup_path, world_dir)
+            except Exception as e:
+                self.log_print(LogLevel.ERROR, f"Failed to restore backup '{backup_name}': {e}")
+                return False
+
+            self.log_print(LogLevel.INFO, f"Successfully switched world to backup '{backup_name}'.")
+            return True
