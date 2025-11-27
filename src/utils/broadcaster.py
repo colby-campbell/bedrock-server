@@ -1,15 +1,27 @@
+from enum import Enum
+
+
 class Broadcaster:
     """Class to broadcast server output to multiple subscribers."""
     def __init__(self):
+        """Initialize the Broadcaster with an empty list of subscribers."""
         self.subscribers = []
 
-    def subscribe(self, callback):
+    class Priority(Enum):
+        """Priority levels for subscribers."""
+        HIGH = 1
+        MEDIUM = 2
+        LOW = 3
+
+    def subscribe(self, callback, priority = Priority.MEDIUM):
         """
         Register a new subscriber to be called upon.
         Args:
             callback (func): Function to add to the subscribe list.
         """
         self.subscribers.append(callback)
+        # Sort subscribers based on priority
+        self.subscribers.sort(key=lambda x: priority.value)
 
 class LineBroadcaster(Broadcaster):
     def publish(self, timestamp, line):
