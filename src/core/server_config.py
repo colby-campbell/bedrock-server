@@ -55,7 +55,11 @@ class ServerConfig:
 
         # Load the config file
         with open(self.CONFIG_PATH, "rb") as f:
-            cfg = tomllib.load(f)
+            try:
+                cfg = tomllib.load(f)
+            except tomllib.TOMLDecodeError as e:
+                print(f"bedrock-server: {self.CONFIG_PATH}: invalid TOML format: {e}")
+                sys.exit(1)
 
         # TODO: Add default values for optional settings?
         # Load the config settings
@@ -67,9 +71,10 @@ class ServerConfig:
         self.shutdown_timeout = cfg.get("shutdown_timeout")
         self.crash_limit = cfg.get("crash_limit")
         self.restart_time = cfg.get("restart_time")
-        self.discord_bot = cfg.get("discord_bot")
+        self.discord_bot = cfg.get("discord_bot_enabled")
         self.bot_token = cfg.get("bot_token")
         self.admins = cfg.get("admin_list")
+        self.auto_update = cfg.get("auto_update")
 
         # Validate the config file settings
         errors = self.validate()
@@ -163,5 +168,10 @@ class ServerConfig:
         # admin_list
         if not isinstance(self.admins, list):
             errors.append("admin_list: must be a list containing Discord ID's as integers")
+        # auto_update
+        if self.auto_update is None:
+            errors.append("auto_update: missing (required)")
+        elif not isinstance(self.auto_update, bool):
+            errors.append("auto_update: must be a boolean")
 
         return errors

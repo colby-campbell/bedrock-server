@@ -6,6 +6,7 @@ import threading
 import shutil
 from collections import deque
 import re
+import requests
 
 # Constants
 RESTART_WARNING_MINUTES = 5
@@ -44,6 +45,7 @@ class ServerAutomation:
         self.recent_crashes = []
         # Recent lines buffer for monitoring server output
         self._recent_lines = deque(maxlen=DEQUE_MAX_LENGTH)
+        self.current_version = None
 
 
     def log_print(self, level: LogLevel, line):
@@ -73,6 +75,9 @@ class ServerAutomation:
             timestamp (str): The timestamp of the output line.
             line (str): The output line from the server.
         """
+        # Scrape the line for the version number
+        if (line.startswith("Version:")):
+            self.current_version = line.split("Version:")[1].strip()
         self.logger.log(timestamp + line)
         self._recent_lines.appendleft(line)
 
@@ -530,3 +535,4 @@ class ServerAutomation:
 
             self.log_print(LogLevel.INFO, f"Successfully switched world to backup '{backup_name}'.")
             return True
+
