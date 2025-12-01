@@ -35,7 +35,7 @@ class ServerConfig:
     shutdown_timeout    = 60
     crash_limit         = 3
     restart_time        = "03:30"
-    discord_bot         = true
+    discord_bot_enabled = true
     bot_token           = "bot token"
     admin_list          = [1234567890123456789]  # replace with your Discord IDs
     """
@@ -71,7 +71,7 @@ class ServerConfig:
         self.shutdown_timeout = cfg.get("shutdown_timeout")
         self.crash_limit = cfg.get("crash_limit")
         self.restart_time = cfg.get("restart_time")
-        self.discord_bot = cfg.get("discord_bot_enabled")
+        self.discord_bot_enabled = cfg.get("discord_bot_enabled")
         self.bot_token = cfg.get("bot_token")
         self.admins = cfg.get("admin_list")
         self.auto_update = cfg.get("auto_update")
@@ -155,11 +155,11 @@ class ServerConfig:
                     self.restart_time = [int(match.group(1)), int(match.group(2))]
             except ValueError:
                 errors.append(f"restart_time: {self.restart_time}: cannot contain non-integer numbers")
-        # discord_bot
-        if self.discord_bot is None:
-            errors.append("discord_bot: missing (required)")
-        if not isinstance(self.discord_bot, bool):
-            errors.append("discord_bot: must be a boolean")
+        # discord_bot_enabled
+        if self.discord_bot_enabled is None:
+            errors.append("discord_bot_enabled: missing (required)")
+        if not isinstance(self.discord_bot_enabled, bool):
+            errors.append("discord_bot_enabled: must be a boolean")
         # token
         if self.bot_token is None:
             errors.append("bot_token: missing (required)")
