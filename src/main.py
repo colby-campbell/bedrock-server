@@ -1,3 +1,4 @@
+import sys
 from core import ServerConfig
 from core import ServerRunner
 from core import ServerAutomation
@@ -19,20 +20,24 @@ DiscordBot - takes ServerRunner, ServerConfig, and ServerAutomation to provide D
 Command-Line Interface - takes ServerRunner, ServerConfig, ServerAutomation, and DiscordBot to provide CLI interface
 """
 
+# This is a list of output messages to print on exit
+output_message = ["bedrock-server:"]
+
 
 def cleanup():
     """Cleanup function to ensure server and bot are shut down on exit."""
-    print("bedrock-server:")
     if bot is not None:
-        print("  main: stopping Discord bot before exit...")
+        output_message.append("  main: stopping Discord bot before exit...")
         bot.discord_bot_stop()
     if runner.is_running():
-        print("  main: stopping server before exit...")
+        output_message.append("  main: stopping server before exit...")
         runner.stop()
     if automation.logger.running:
-        print("  main: stopping logger before exit...")
+        output_message.append("  main: stopping logger before exit...")
         automation.logger.stop()
-    print("  main: exited cleanly")
+    output_message.append("  main: exited cleanly")
+    # Print all output messages at once
+    print("\n".join(output_message))
 
 
 if __name__ == "__main__":
@@ -56,6 +61,10 @@ if __name__ == "__main__":
     cli = CommandLineInterface(config, runner, automation, bot)  # Placeholder for Command-Line Interface instance
 
     # Start the server and CLI
-    runner.start()
+    try:
+        runner.start()
+    except (FileNotFoundError, RuntimeError) as e:
+        output_message.append(f"  ServerRunner: {e}")
+        sys.exit(2)
     automation.start()
     cli.start()

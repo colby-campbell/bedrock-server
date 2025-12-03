@@ -1,3 +1,4 @@
+import sys
 from utils import LineBroadcaster, SignalBroadcaster, process_line, get_prefix, LogLevel, Platform
 from contextlib import contextmanager
 import subprocess
@@ -60,9 +61,21 @@ class ServerRunner:
                 # On Linux we have to set the correct library path environment
                 env["LD_LIBRARY_PATH"] = cwd
 
+            """
+            Currently prints this:
+            bedrock-server: server executable not found at expected path: server/bedrock_server
+            bedrock-server:
+            main: stopping logger before exit...
+            main: exited cleanly
+            """
+
+            executable_path = "./bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe"
+            if not os.path.isfile(os.path.join(cwd, executable_path)):
+                raise FileNotFoundError(f"Server executable not found at expected path: {os.path.join(cwd, executable_path)}")
+
             # Start the server process
             self.process = subprocess.Popen(
-                [self.server_folder + "/bedrock_server" if self.platform == Platform.Linux else self.server_folder + "\\bedrock_server.exe"],
+                [executable_path],
                 cwd=cwd,
                 env=env,
                 stdin=subprocess.PIPE,
