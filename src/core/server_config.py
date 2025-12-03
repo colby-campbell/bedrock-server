@@ -2,6 +2,13 @@ import tomllib
 import os
 import sys
 import re
+import platform
+from enum import Enum
+
+
+class Platform(Enum):
+    Windows = "Windows"
+    Linux = "Linux"
 
 
 class ServerConfig:
@@ -63,6 +70,16 @@ class ServerConfig:
 
         # TODO: Add default values for optional settings?
         # Load the config settings
+        # Determine platform if it has not been set
+        detected_platform = platform.system()
+        platform_str = cfg.get("platform", detected_platform)
+
+        # Try to parse the platform enum
+        try:
+            self.platform = Platform(platform_str)
+        except ValueError:
+            self.platform = None
+
         self.executable_loc = cfg.get("executable_location")
         self.log_loc = cfg.get("log_location")
         self.world_loc = cfg.get("world_location")
@@ -89,6 +106,9 @@ class ServerConfig:
             list (str): A list of error messages for invalid or missing settings.
         """
         errors = []
+        # platform
+        if self.platform is None:
+            errors.append("platform: could not auto-detect; set 'platform = \"Windows\"' or 'platform = \"Linux\"'")
         # executable_location
         if self.executable_loc is None:
             errors.append("executable_location: missing (required)")

@@ -2,7 +2,8 @@ from utils import LineBroadcaster, SignalBroadcaster, process_line, get_prefix, 
 from contextlib import contextmanager
 import subprocess
 import threading
-import queue
+import os
+from core import Platform
 
 
 class ServerRunner:
@@ -49,9 +50,20 @@ class ServerRunner:
 
             self._expected_shutdown = False
 
+            # Grab the current environment and the working directory for the server executable
+            env = os.environ.copy()
+            # TODO: make better lol
+            cwd = self.config.executable_loc.rsplit(os.sep, 1)[0]
+
+            if self.config.platform == Platform.Linux:
+                # On Linux we have to set the correct library path environment
+                env["LD_LIBRARY_PATH"] = cwd
+
             # Start the server process
             self.process = subprocess.Popen(
                 [self.executable_loc],
+                cwd=cwd,
+                env=env,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
