@@ -1,7 +1,8 @@
 from .broadcast_handler import BroadcastHandler
 from .buffered_daily_logger import BufferedDailyLogger
 from .format_helper import LogLevel, get_timestamp, get_spacing, get_prefix, process_line
-from .output_broadcaster import LineBroadcaster, SignalBroadcaster
+from .broadcaster import LineBroadcaster, SignalBroadcaster
+from .platform import Platform
 
 __all__ = [
     'BroadcastHandler',
@@ -13,4 +14,5 @@ __all__ = [
     'process_line',
     'LineBroadcaster',
     'SignalBroadcaster',
+    'Platform'
 ]

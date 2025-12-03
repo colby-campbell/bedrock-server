@@ -1,21 +1,22 @@
-from utils import LineBroadcaster, SignalBroadcaster, process_line, get_prefix, LogLevel
+from utils import LineBroadcaster, SignalBroadcaster, process_line, get_prefix, LogLevel, Platform
 from contextlib import contextmanager
 import subprocess
 import threading
 import os
-from core import Platform
+from .server_config import ServerConfig
 
 
 class ServerRunner:
-    def __init__(self, config):
+    def __init__(self, config : ServerConfig):
         """
         Initialize ServerRunner with a configuration object.
         Args:
             config (ServerConfig): The server configuration instance.
         """
         self.config = config
-        self.executable_loc = config.executable_loc
+        self.server_folder = config.server_folder
         self.shutdown_timeout = config.shutdown_timeout
+        self.platform = config.platform
         self.process = None
         self.stdout_broadcaster = LineBroadcaster()
         self.unexpected_shutdown_broadcaster = LineBroadcaster()
@@ -53,15 +54,15 @@ class ServerRunner:
             # Grab the current environment and the working directory for the server executable
             env = os.environ.copy()
             # TODO: make better lol
-            cwd = self.config.executable_loc.rsplit(os.sep, 1)[0]
+            cwd = self.server_folder
 
-            if self.config.platform == Platform.Linux:
+            if self.platform == Platform.Linux:
                 # On Linux we have to set the correct library path environment
                 env["LD_LIBRARY_PATH"] = cwd
 
             # Start the server process
             self.process = subprocess.Popen(
-                [self.executable_loc],
+                [self.server_folder + "/bedrock_server" if self.platform == Platform.Linux else self.server_folder + "\\bedrock_server.exe"],
                 cwd=cwd,
                 env=env,
                 stdin=subprocess.PIPE,

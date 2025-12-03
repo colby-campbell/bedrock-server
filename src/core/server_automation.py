@@ -20,6 +20,7 @@ DEQUE_MAX_LENGTH = 100
 SUCCESS_PATTERN = r"Data saved. Files are now ready to be copied."
 FAIL_PATTERN = r"A previous save has not been completed."
 SAVE_QUERY_TIMEOUT_SECONDS = 10
+WORLDS_FOLDER_NAME = "worlds"
 
 """
 This will need to manage server automation tasks like
@@ -33,6 +34,12 @@ Next to do:
 class ServerAutomation:
     def __init__(self, config, runner):
         self.config = config
+        self.server_folder = config.server_folder
+        self.world_name = config.world_name
+        self.backup_folder = config.backup_folder
+        self.backup_duration = config.backup_duration
+        self.crash_limit = config.crash_limit
+        self.restart_time = config.restart_time
         self.runner = runner
         # Subscribe to the stdout broadcaster and unexpected shutdown broadcaster
         self.runner.stdout_broadcaster.subscribe(self.handle_server_output)
@@ -40,7 +47,7 @@ class ServerAutomation:
         # Create a broadcaster to broadcast outputs to the CLI
         self.automation_output_broadcaster = LineBroadcaster()
         # Create logger
-        self.logger = BufferedDailyLogger(self.config.log_loc)
+        self.logger = BufferedDailyLogger(self.config.log_folder)
         # Create a list of crashes
         self.recent_crashes = []
         # Recent lines buffer for monitoring server output
@@ -66,7 +73,7 @@ class ServerAutomation:
         scheduled_restart_thread = threading.Thread(target=self._scheduled_restart, daemon=True)
         scheduled_restart_thread.start()
         # Prune old backups on startup
-        self._prune_old_backups(Path(self.config.backup_loc))
+        self._prune_old_backups(Path(self.backup_folder))
 
 
     def handle_server_output(self, timestamp, line):
@@ -100,7 +107,7 @@ class ServerAutomation:
             if time < crash_detection_window:
                 self.recent_crashes.pop
         # If the length is larger than the crash limit, send an error and do not restart the server
-        if len(self.recent_crashes) >= self.config.crash_limit:
+        if len(self.recent_crashes) >= self.crash_limit:
             self.log_print(LogLevel.CRITICAL, "Repeated unexpected shutdowns detected. Crash limit exceeded. Server restart attempts halted until manual intervention.")
         else:
             self.log_print(LogLevel.INFO, "Automatic restart triggered due to unexpected server shutdown.")
@@ -112,7 +119,7 @@ class ServerAutomation:
         while True:
             # Get current time and today's restart time
             now = datetime.now()
-            restart_date = now.replace(hour=self.config.restart_time[0], minute=self.config.restart_time[1], second=0, microsecond=0)
+            restart_date = now.replace(hour=self.restart_time[0], minute=self.restart_time[1], second=0, microsecond=0)
 
             # If today's restart time has passed, schedule for tomorrow
             if now >= restart_date:
@@ -154,7 +161,7 @@ class ServerAutomation:
             backup_root (Path): The root directory where backups are stored.
         """
         self.log_print(LogLevel.INFO, "Pruning old backups...")
-        cutoff_time = datetime.now() - timedelta(days=self.config.backup_dur)
+        cutoff_time = datetime.now() - timedelta(days=self.backup_duration)
         pruned = []
         for backup in backup_root.iterdir():
             try:
@@ -197,8 +204,8 @@ class ServerAutomation:
                 return None
             
             # Prepare paths to backup
-            world_dir = Path(self.config.world_loc)
-            backup_root = Path(self.config.backup_loc)
+            world_dir = Path(self.server_folder) / WORLDS_FOLDER_NAME / self.world_name
+            backup_root = Path(self.backup_folder)
             backup_root.mkdir(parents=True, exist_ok=True)
 
             timestamp = strftime(BACKUP_TIMESTAMP_FORMAT)
@@ -258,8 +265,8 @@ class ServerAutomation:
                 return None
 
             # Prepare paths to backup
-            world_dir = Path(self.config.world_loc)
-            backup_root = Path(self.config.backup_loc)
+            world_dir = Path(self.server_folder) / WORLDS_FOLDER_NAME / self.world_name
+            backup_root = Path(self.backup_folder)
             backup_root.mkdir(parents=True, exist_ok=True)
 
             timestamp = strftime(BACKUP_TIMESTAMP_FORMAT)
@@ -380,7 +387,7 @@ class ServerAutomation:
 
     def list_backups(self):
         """List existing backups in the backup directory."""
-        backup_root = Path(self.config.backup_loc)
+        backup_root = Path(self.backup_folder)
 
         backups = []
         if backup_root.exists() and backup_root.is_dir():
@@ -397,7 +404,7 @@ class ServerAutomation:
 
     def mark_backup(self, identifier):
         """Mark a backup as protected from automatic deletion."""
-        backup_root = Path(self.config.backup_loc)
+        backup_root = Path(self.backup_folder)
         if identifier.lower() == "latest":
             # Find the latest backup
             latest_backup = None
@@ -442,7 +449,7 @@ class ServerAutomation:
 
     def unmark_backup(self, identifier):
         """Unmark a backup from being protected from automatic deletion."""
-        backup_root = Path(self.config.backup_loc)
+        backup_root = Path(self.backup_folder)
         if identifier.lower() == "latest":
             # Find the latest backup
             latest_backup = None
@@ -497,8 +504,8 @@ class ServerAutomation:
                 return False
 
             # Prepare paths
-            world_dir = Path(self.config.world_loc)
-            backup_root = Path(self.config.backup_loc)
+            world_dir = Path(self.server_folder) / WORLDS_FOLDER_NAME / self.world_name
+            backup_root = Path(self.backup_folder)
             backup_path = backup_root / backup_name
 
             # Check if the backup exists
