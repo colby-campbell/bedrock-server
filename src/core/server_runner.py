@@ -73,7 +73,7 @@ class ServerRunner:
             # Verify that the server executable exists at the expected path
             if not os.path.isfile(os.path.join(cwd, executable_path)):
                 formatted_path = os.path.join(cwd, "bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe")
-                raise FileNotFoundError(f"{formatted_path}: server executable not found at expected path")
+                raise FileNotFoundError(f"{formatted_path}: server executable not found")
 
             # Start the server process
             self.process = subprocess.Popen(
