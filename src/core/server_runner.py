@@ -55,28 +55,20 @@ class ServerRunner:
             # Grab the current environment and the working directory for the server executable
             env = os.environ.copy()
             # TODO: make better lol
-            cwd = self.server_folder
+            cwd = os.path.abspath(self.server_folder)
 
             if self.platform == Platform.Linux:
                 # On Linux we have to set the correct library path environment
                 env["LD_LIBRARY_PATH"] = cwd
 
-            """
-            Currently prints this:
-            bedrock-server: server executable not found at expected path: server/bedrock_server
-            bedrock-server:
-            main: stopping logger before exit...
-            main: exited cleanly
-            """
-
-            executable_name = "bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe"
-            executable_path = os.path.join(cwd, executable_name)
             # Verify that the server executable exists at the expected path
+            executable_path = os.path.join(cwd, "bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe")
             if not os.path.isfile(executable_path):
                 raise FileNotFoundError(f"{executable_path}: server executable not found")
+            
             # Start the server process
             self.process = subprocess.Popen(
-                [os.path.join(".", executable_path)],
+                [executable_path],
                 cwd=cwd,
                 env=env,
                 stdin=subprocess.PIPE,
