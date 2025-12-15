@@ -69,13 +69,14 @@ class ServerRunner:
             main: exited cleanly
             """
 
-            executable_path = os.path.join(cwd, "bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe")
+            executable_name = "bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe"
+            executable_path = os.path.join(cwd, executable_name)
             # Verify that the server executable exists at the expected path
             if not os.path.isfile(executable_path):
                 raise FileNotFoundError(f"{executable_path}: server executable not found")
             # Start the server process
             self.process = subprocess.Popen(
-                [executable_path],
+                [os.path.join(".", executable_path)],
                 cwd=cwd,
                 env=env,
                 stdin=subprocess.PIPE,
