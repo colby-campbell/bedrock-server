@@ -51,7 +51,7 @@ if __name__ == "__main__":
     atexit.register(cleanup)
 
     # Start the Discord bot if enabled in the config
-    if config.discord_bot:
+    if config.discord_bot_enabled:
         bot = DiscordBot(config, runner, automation)
         # Start the discord bot in a separate thread
         bot_thread = threading.Thread(target=bot.discord_bot_start, daemon=True)
