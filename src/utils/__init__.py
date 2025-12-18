@@ -3,6 +3,7 @@ from .buffered_daily_logger import BufferedDailyLogger
 from .format_helper import LogLevel, get_timestamp, get_spacing, get_prefix, process_line
 from .broadcaster import LineBroadcaster, SignalBroadcaster
 from .platform import Platform
+from .bedrock_download_link_fetcher import UpdateInfo, get_bedrock_update_info
 
 __all__ = [
     'BroadcastHandler',
@@ -14,5 +15,7 @@ __all__ = [
     'process_line',
     'LineBroadcaster',
     'SignalBroadcaster',
-    'Platform'
+    'Platform',
+    'UpdateInfo',
+    'get_bedrock_update_info'
 ]

@@ -146,6 +146,8 @@ class CommandLineInterface:
                                    Unprotect backup(s) from automatic deletion
                     :switch <backup_name>
                                    Switch the world to the specified backup
+                    :check         Check for Bedrock server updates
+                    :update        Update the Bedrock server to the latest version
                     :exit, :quit   Exit the CLI (and stop the server if running)
                     """
                     self.just_print(help_text.strip())
@@ -202,7 +204,15 @@ class CommandLineInterface:
                         self.automation.switch_to_backup_world(backup_name)
                     else:
                         self.just_print("Usage: :switch <backup_name>")
-
+                # Check for updates
+                elif cmd == 'check':
+                    self.log_print("Checking for Bedrock server updates...")
+                    result = self.automation.check_for_updates()
+                    self.log_print(result)
+                # Update
+                elif cmd == 'update':
+                    self.log_print("Updating Bedrock server to the latest version...")
+                    # self.automation.update_server()
                 # Exit
                 elif cmd == 'exit' or cmd == 'quit':
                     # If the bot is not running or is fully started or fully stopped, allow exit

@@ -1,4 +1,4 @@
-from utils import BufferedDailyLogger, LineBroadcaster, get_prefix, LogLevel
+from utils import BufferedDailyLogger, LineBroadcaster, get_prefix, LogLevel, UpdateInfo, get_bedrock_update_info
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep, strftime, time
@@ -6,7 +6,6 @@ import threading
 import shutil
 from collections import deque
 import re
-import requests
 
 # Constants
 RESTART_WARNING_MINUTES = 5
@@ -21,6 +20,7 @@ SUCCESS_PATTERN = r"Data saved. Files are now ready to be copied."
 FAIL_PATTERN = r"A previous save has not been completed."
 SAVE_QUERY_TIMEOUT_SECONDS = 10
 WORLDS_FOLDER_NAME = "worlds"
+VERSION_REGEX = r"bedrock-server-([0-9.]+)\.zip"
 
 """
 This will need to manage server automation tasks like
@@ -255,7 +255,7 @@ class ServerAutomation:
     def backup_world_online(self, skip_pruning: bool = False):
         """Perform a backup of the world while the server remains online.
         Args:
-            skip_pruning (bool): If True, skip pruning old backups after creating the backup.
+            skip_pruning (bool): Default is False, if True, skip pruning old backups after creating the backup.
         """
         # Use the runner's lock to ensure atomic operation
         with self.runner.lock():
@@ -403,7 +403,11 @@ class ServerAutomation:
 
 
     def mark_backup(self, identifier):
-        """Mark a backup as protected from automatic deletion."""
+        """
+        Mark a backup as protected from automatic deletion.
+        Args:
+            identifier (str): The name of the backup to mark, "latest" for the latest backup, or a date in YYYY-MM-DD format to mark all backups from that date.
+        """
         backup_root = Path(self.backup_folder)
         if identifier.lower() == "latest":
             # Find the latest backup
@@ -448,7 +452,11 @@ class ServerAutomation:
 
 
     def unmark_backup(self, identifier):
-        """Unmark a backup from being protected from automatic deletion."""
+        """
+        Unmark a backup from being protected from automatic deletion.
+        Args:
+            identifier (str): The name of the backup to unmark, "latest" for the latest backup, or a date in YYYY-MM-DD format to unmark all backups from that date.
+        """
         backup_root = Path(self.backup_folder)
         if identifier.lower() == "latest":
             # Find the latest backup
@@ -543,3 +551,16 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, f"Successfully switched world to backup '{backup_name}'.")
             return True
 
+
+    def check_for_updates(self):
+        """
+        Check for Bedrock server updates, uses the platform to determine the correct download type.
+        """
+        updateInfo = get_bedrock_update_info(self.current_version, self.config.platform, VERSION_REGEX)
+        if updateInfo.error:
+            self.log_print(LogLevel.ERROR, f"Update check failed: {updateInfo.error}")
+            return "Update check failed."
+        elif updateInfo.update_available:
+            return f"Update available: {self.current_version} -> {updateInfo.latest_version}."
+        else:
+            return f"No update available, you are running the latest version: {updateInfo.latest_version}."
