@@ -1,3 +1,4 @@
+import requests
 from utils import BufferedDailyLogger, LineBroadcaster, get_prefix, LogLevel, UpdateInfo, get_bedrock_update_info
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,6 +22,9 @@ FAIL_PATTERN = r"A previous save has not been completed."
 SAVE_QUERY_TIMEOUT_SECONDS = 10
 WORLDS_FOLDER_NAME = "worlds"
 VERSION_REGEX = r"bedrock-server-([0-9.]+)\.zip"
+DOWNLOAD_TIMEOUT_SECONDS = 30
+DOWNLOAD_CHUNK_SIZE = 1024 * 64 # 64KB
+
 
 """
 This will need to manage server automation tasks like
@@ -231,15 +235,14 @@ class ServerAutomation:
             # TODO: Add a config option for compression
             final_path = dest_dir
             # Optional compression flag ("compress_backups")
-            if True:
-                try:
-                    # Compress the backup directory
-                    shutil.make_archive(str(dest_dir), 'zip', root_dir=backup_root, base_dir=dest_dir.name)
-                    # Remove the uncompressed backup directory
-                    shutil.rmtree(dest_dir, ignore_errors=True)
-                    final_path = dest_dir.with_suffix('.zip')
-                except Exception as e:
-                    self.log_print(LogLevel.WARN, f"Offline backup compression failed, keeping folder backup: {e}")
+            try:
+                # Compress the backup directory
+                shutil.make_archive(str(dest_dir), 'zip', root_dir=backup_root, base_dir=dest_dir.name)
+                # Remove the uncompressed backup directory
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                final_path = dest_dir.with_suffix('.zip')
+            except Exception as e:
+                self.log_print(LogLevel.WARN, f"Offline backup compression failed, keeping folder backup: {e}")
 
             self.log_print(LogLevel.INFO, f"Successfully completed offline world backup: {final_path.name}")
 
@@ -356,16 +359,14 @@ class ServerAutomation:
             # Step 4: Compress the backup directory
             # TODO: Add a config option for compression
             final_path = dest_dir
-            # Optional compression flag ("compress_backups")
-            if True:
-                try:
-                    # Compress the backup directory
-                    shutil.make_archive(str(dest_dir), 'zip', root_dir=backup_root, base_dir=dest_dir.name)
-                    # Remove the uncompressed backup directory
-                    shutil.rmtree(dest_dir, ignore_errors=True)
-                    final_path = dest_dir.with_suffix('.zip')
-                except Exception as e:
-                    self.log_print(LogLevel.WARN, f"Offline backup compression failed, keeping folder backup: {e}")
+            try:
+                # Compress the backup directory
+                shutil.make_archive(str(dest_dir), 'zip', root_dir=backup_root, base_dir=dest_dir.name)
+                # Remove the uncompressed backup directory
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                final_path = dest_dir.with_suffix('.zip')
+            except Exception as e:
+                self.log_print(LogLevel.WARN, f"Offline backup compression failed, keeping folder backup: {e}")
 
             self.log_print(LogLevel.INFO, f"Successfully completed online world backup: {final_path.name}")
 
@@ -513,8 +514,7 @@ class ServerAutomation:
 
             # Prepare paths
             world_dir = Path(self.server_folder) / WORLDS_FOLDER_NAME / self.world_name
-            backup_root = Path(self.backup_folder)
-            backup_path = backup_root / backup_name
+            backup_path = Path(self.backup_folder) / backup_name
 
             # Check if the backup exists
             if not backup_path.exists():
@@ -564,3 +564,55 @@ class ServerAutomation:
             return f"Update available: {self.current_version} -> {updateInfo.latest_version}."
         else:
             return f"No update available, you are running the latest version: {updateInfo.latest_version}."
+    
+
+    def update_server(self):
+        """
+        Update the Bedrock server to the latest version.
+        """
+        updateInfo = get_bedrock_update_info(self.current_version, self.config.platform, VERSION_REGEX)
+        if updateInfo.error:
+            self.log_print(LogLevel.ERROR, f"Update check failed: {updateInfo.error}")
+            return "Update check failed; cannot proceed with update."
+        elif not updateInfo.update_available:
+            return f"No update available, you are running the latest version: {updateInfo.latest_version}."
+        
+        with self.runner.lock():
+            # Refuse to update if the server is running
+            if self.runner.is_running():
+                self.log_print(LogLevel.ERROR, "Cannot update server while it is running.")
+                return "Cannot update server while it is running."
+            
+            self.log_print(LogLevel.INFO, f"Updating server from version {self.current_version} to {updateInfo.latest_version}...")
+
+            # Backup the world before updating
+            self.log_print(LogLevel.INFO, "Creating offline backup of current world before updating...")
+            self.backup_world_offline(skip_pruning=True)
+
+            # Prepare paths to download the backup
+            temp_dir = Path(f"{TEMPORARY_BACKUP_PREFIX}_bedrock_update")
+            download_path = temp_dir / "update.zip"
+
+            # Download the new server files
+            self.log_print(LogLevel.INFO, f"Downloading update from {updateInfo.download_url}...")
+            try:
+                with requests.get(updateInfo.download_url, stream=True, timeout=DOWNLOAD_TIMEOUT_SECONDS) as resp:
+                    resp.raise_for_status()
+                    with open(download_path, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
+                            if chunk:
+                                f.write(chunk)
+            except Exception as e:
+                # Clean temp if created
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception:
+                    pass
+                self.log_print(LogLevel.ERROR, f"Failed to download update: {e}")
+                return "Failed to download update."
+            self.log_print(LogLevel.INFO, "Download completed.")
+
+            # Backup current server files
+            # should i put this in its own function?
+
+            # Extract the downloaded files to the server folder

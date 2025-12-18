@@ -25,9 +25,10 @@ class ServerConfig:
         INTEGER = 2
         BOOLEAN = 3
         LIST_OF_INTEGERS = 4
-        FOLDER = 5
-        TIME = 6
-        PLATFORM = 7
+        LIST_OF_STRINGS = 5
+        FOLDER = 6
+        TIME = 7
+        PLATFORM = 8
 
     class SettingContainer:
         """Container for a setting value, its name, and type."""
@@ -82,6 +83,14 @@ class ServerConfig:
     # Whether to enable automatic updates (recommended).
     # Allowed Values: true, false
 
+    update_protected_paths=["server.properties", "allowlist.json", "permissions.json", "server.properties", "profanity_filter.wlist"]
+    # List of server files/folders to protect from being overwritten during an update (worlds are always protected).
+    # Allowed Values: [string, string, ...]
+
+    update_backup_paths=["server.properties", "allowlist.json", "permissions.json", "server.properties", "profanity_filter.wlist"]
+    # List of server files/folders to back up before performing an update (worlds are always backed up).
+    # Allowed Values: [string, string, ...] | all
+
     # platform (optional)
     # If not set, this is auto-detected.
     # Set manually only if auto-detection fails.
@@ -128,6 +137,8 @@ class ServerConfig:
         self.bot_token = cfg.get("bot_token")
         self.admins = cfg.get("admin_list")
         self.auto_update = cfg.get("auto_update")
+        self.update_protected_paths = cfg.get("update_protected_paths")
+        self.update_backup_paths = cfg.get("update_backup_paths")
 
         # Determine the platform if not set
         detected_platform = platform.system()
@@ -188,7 +199,9 @@ class ServerConfig:
             self.SettingContainer(self.admins, "admin_list", self.SettingType.LIST_OF_INTEGERS) if self.discord_bot else None,
             self.SettingContainer(self.auto_update, "auto_update", self.SettingType.BOOLEAN),
             self.SettingContainer(self.platform, "platform", self.SettingType.PLATFORM),
-            self.SettingContainer(self.world_name, "world_name", self.SettingType.STRING)
+            self.SettingContainer(self.world_name, "world_name", self.SettingType.STRING),
+            self.SettingContainer(self.update_protected_paths, "update_protected_paths", self.SettingType.LIST_OF_STRINGS),
+            self.SettingContainer(self.update_backup_paths, "update_backup_paths", self.SettingType.LIST_OF_STRINGS)
         )
 
         errors = []
@@ -218,6 +231,11 @@ class ServerConfig:
                         errors.append(f"{name}: must be a list of integers")
                     elif not all(isinstance(item, int) for item in value):
                         errors.append(f"{name}: all items must be integers")
+                case self.SettingType.LIST_OF_STRINGS:
+                    if not isinstance(value, list):
+                        errors.append(f"{name}: must be a list of strings")
+                    elif not all(isinstance(item, str) for item in value):
+                        errors.append(f"{name}: all items must be strings")
                 case self.SettingType.FOLDER:
                     if not isinstance(value, str):
                         errors.append(f"{name}: must be a string representing a folder path")
