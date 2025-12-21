@@ -26,9 +26,10 @@ class ServerConfig:
         BOOLEAN = 3
         LIST_OF_INTEGERS = 4
         LIST_OF_STRINGS = 5
-        FOLDER = 6
-        TIME = 7
-        PLATFORM = 8
+        LIST_OF_STRINGS_OR_ALL = 6
+        FOLDER = 7
+        TIME = 8
+        PLATFORM = 9
 
     class SettingContainer:
         """Container for a setting value, its name, and type."""
@@ -88,7 +89,7 @@ class ServerConfig:
     # Allowed Values: [string, string, ...]
 
     update_backup_paths=["server.properties", "allowlist.json", "permissions.json", "server.properties", "profanity_filter.wlist"]
-    # List of server files/folders to back up before performing an update (worlds are always backed up).
+    # List of server files/folders to back up before performing an update, must be relative to the server folder (worlds are always backed up).
     # Allowed Values: [string, string, ...] | all
 
     # platform (optional)
@@ -201,7 +202,7 @@ class ServerConfig:
             self.SettingContainer(self.platform, "platform", self.SettingType.PLATFORM),
             self.SettingContainer(self.world_name, "world_name", self.SettingType.STRING),
             self.SettingContainer(self.update_protected_paths, "update_protected_paths", self.SettingType.LIST_OF_STRINGS),
-            self.SettingContainer(self.update_backup_paths, "update_backup_paths", self.SettingType.LIST_OF_STRINGS)
+            self.SettingContainer(self.update_backup_paths, "update_backup_paths", self.SettingType.LIST_OF_STRINGS_OR_ALL)
         )
 
         errors = []
@@ -236,6 +237,13 @@ class ServerConfig:
                         errors.append(f"{name}: must be a list of strings")
                     elif not all(isinstance(item, str) for item in value):
                         errors.append(f"{name}: all items must be strings")
+                case self.SettingType.LIST_OF_STRINGS_OR_ALL:
+                    if not (isinstance(value, list) or isinstance(value, str)):
+                        errors.append(f"{name}: must be a list of strings or the string 'all'")
+                    elif isinstance(value, list) and not all(isinstance(item, str) for item in value):
+                        errors.append(f"{name}: all items must be strings")
+                    elif isinstance(value, str) and value.lower() != "all":
+                        errors.append(f"{name}: if a string, must be 'all'")
                 case self.SettingType.FOLDER:
                     if not isinstance(value, str):
                         errors.append(f"{name}: must be a string representing a folder path")

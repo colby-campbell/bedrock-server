@@ -24,6 +24,8 @@ WORLDS_FOLDER_NAME = "worlds"
 VERSION_REGEX = r"bedrock-server-([0-9.]+)\.zip"
 DOWNLOAD_TIMEOUT_SECONDS = 30
 DOWNLOAD_CHUNK_SIZE = 1024 * 64 # 64KB
+SERVER_BACKUP_PREFIX = "server_backup"
+WORLDS_FOLDER_NAME = "worlds"
 
 
 """
@@ -232,9 +234,7 @@ class ServerAutomation:
                 return None
 
             # Compress the backup directory
-            # TODO: Add a config option for compression
             final_path = dest_dir
-            # Optional compression flag ("compress_backups")
             try:
                 # Compress the backup directory
                 shutil.make_archive(str(dest_dir), 'zip', root_dir=backup_root, base_dir=dest_dir.name)
@@ -566,6 +566,88 @@ class ServerAutomation:
             return f"No update available, you are running the latest version: {updateInfo.latest_version}."
     
 
+    def _backup_server_files(self, skip_pruning: bool = False):
+        """
+        Backup the server files specified in the config file before updating.
+        """
+        # Use the runner's lock to ensure atomic operation
+        with self.runner.lock():
+            # Refuse to backup if the server is running
+            if self.runner.is_running():
+                self.log_print(LogLevel.ERROR, "Cannot perform server files backup while server is running.")
+                return None
+            
+            # Prepare paths to backup
+            server_dir = Path(self.server_folder)
+            server_dir.mkdir(parents=True, exist_ok=True)
+            backup_root = Path(self.backup_folder)
+            backup_root.mkdir(parents=True, exist_ok=True)
+
+            timestamp = strftime(BACKUP_TIMESTAMP_FORMAT)
+            dest_dir = backup_root / f"{SERVER_BACKUP_PREFIX}_{timestamp}"
+            temp_dir = backup_root / f"{TEMPORARY_BACKUP_PREFIX}_{SERVER_BACKUP_PREFIX}_{timestamp}"
+            
+            self.log_print(LogLevel.INFO, f"Backing up server files to '{dest_dir.name}'")
+
+            # Copy the server files to a temporary location first so incomplete backups are not stored
+            try:
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                # Copy all files and folders except the worlds inside the worlds folder
+                if self.config.update_backup_paths == "all":
+                    for entry in server_dir.iterdir():
+                        target = temp_dir / entry.name
+                        if entry.name == WORLDS_FOLDER_NAME:
+                            target.mkdir(parents=True, exist_ok=True)
+                        elif entry.is_dir():
+                            shutil.copytree(entry, target, dirs_exist_ok=True)
+                        else:
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(entry, target)
+                # Copy only the specified paths in the config
+                else:
+                    for relative_path in self.config.update_backup_paths:
+                        source = server_dir / relative_path
+                        target = temp_dir / relative_path
+                        if source.name == WORLDS_FOLDER_NAME:
+                            self.log_print(LogLevel.WARN, f"Skipping worlds folder in server files backup: {source}")
+                        elif source.is_dir():
+                            shutil.copytree(source, target, dirs_exist_ok=True)
+                        elif source.exists():
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(source, target)
+                        else:
+                            self.log_print(LogLevel.WARN, f"Specified backup path does not exist, skipping: {source}")
+                temp_dir.rename(dest_dir)
+            except Exception as e:
+                # Remove the temporary directory if the backup fails
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                # Log an error message if the backup fails
+                # TODO: Improve error message with exception details
+                self.log_print(LogLevel.ERROR, f"Server files backup failed: {e}")
+                return None
+            
+            # Compress the backup directory
+            final_path = dest_dir
+            try:
+                # Compress the backup directory
+                shutil.make_archive(str(dest_dir), 'zip', root_dir=backup_root, base_dir=dest_dir.name)
+                # Remove the uncompressed backup directory
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                final_path = dest_dir.with_suffix('.zip')
+            except Exception as e:
+                self.log_print(LogLevel.WARN, f"Server files backup compression failed, keeping folder backup: {e}")
+
+            self.log_print(LogLevel.INFO, f"Successfully completed server files backup: {final_path.name}")
+
+            # Prune old backups from the backup directory
+            if not skip_pruning:
+                self._prune_old_backups(backup_root)
+
+            # Return the final backup path for further processing if needed
+            return final_path
+
+
     def update_server(self):
         """
         Update the Bedrock server to the latest version.
@@ -613,6 +695,7 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, "Download completed.")
 
             # Backup current server files
-            # should i put this in its own function?
+            self._backup_server_files()
 
-            # Extract the downloaded files to the server folder
+            # Extract the downloaded files to the server folder (overwrite existing files)
+            self._extract_update_files(download_path)
