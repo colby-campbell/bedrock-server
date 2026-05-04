@@ -75,5 +75,5 @@ CommandLineInterface (CLI with prompt_toolkit)
     }
     ```
 - If major changes are made to the API structure, the `bedrock_download_link_fetcher` module may need to be updated to correctly parse the new format and extract the relevant download links for the Bedrock server.
-    - There are constants defined for 
+    - There are constants defined for key strings `downloadType` and `downloadUrl` as well as the expected `downloadType` values for Windows and Linux: `serverBedrockWindows` and `serverBedrockLinux`.
     
