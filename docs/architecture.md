@@ -42,3 +42,38 @@ CommandLineInterface (CLI with prompt_toolkit)
 - `ServerAutomation` maintains a deque buffer of recent server output lines to monitor for specific events (e.g., save completion) during automated tasks. 
 - Using a dequeue with a fixed maxiumum length ensures efficient memory usage while retaining the most relevant output for event detection.
 - Every item is appened to the left side of the deque, ensuring the most recent lines are always at the front for quick access.
+
+## Checking for Bedrock Server Updates
+- The `bedrock_download_link_fetcher` module in `utils` allows for checking for updates to the Bedrock server by fetching the latest download link from the official API. This can be used by `server_automation` to automate the update process when a new version is detected.
+- The API is of the following format as of 2026-05-04:
+    ```
+    {
+        'result':{
+            'links':[
+                {
+                    'downloadType': 'serverBedrockWindows',
+                    'downloadUrl': 'https://www.minecraft.net/bedrockdedicatedserver/bin-win/bedrock-server-1.26.14.1.zip'
+                },
+                {
+                    'downloadType': 'serverBedrockLinux',
+                    'downloadUrl': 'https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-1.26.14.1.zip'
+                },
+                {
+                    'downloadType': 'serverBedrockPreviewWindows',
+                    'downloadUrl': 'https://www.minecraft.net/bedrockdedicatedserver/bin-win-preview/bedrock-server-1.26.30.26.zip'
+                },
+                {
+                    'downloadType': 'serverBedrockPreviewLinux',
+                    'downloadUrl': 'https://www.minecraft.net/bedrockdedicatedserver/bin-linux-preview/bedrock-server-1.26.30.26.zip'
+                },
+                {
+                    'downloadType': 'serverJar',
+                    'downloadUrl': 'https://piston-data.mojang.com/v1/objects/97ccd4c0ed3f81bbb7bfacddd1090b0c56f9bc51/server.jar'
+                }
+            ]
+        }
+    }
+    ```
+- If major changes are made to the API structure, the `bedrock_download_link_fetcher` module may need to be updated to correctly parse the new format and extract the relevant download links for the Bedrock server.
+    - There are constants defined for 
+    
