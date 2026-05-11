@@ -234,6 +234,10 @@ class CommandLineInterface:
                 words = input_text.lower().split()
                 if words and words[0] in self.BLOCKED_COMMANDS:
                     self.just_print(f"Command '{words[0]}' is blocked. Use built-in CLI command ':{words[0]}' instead.")
+                # Special case of giving a hint for the 'help' command if the user types it without the prefix
+                elif len(words) == 1 and words[0] == "help":
+                    self.just_print("You are passing input for the bedrock server itself, if you want to see the CLI built-in commands, type ':help'.")
+                    self.runner.send_command("help")
                 # Otherwise send it as normal server input
                 elif words and self.runner.is_running():
                     self.runner.send_command(input_text)
