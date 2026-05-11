@@ -729,6 +729,12 @@ class ServerAutomation:
             temp_dir = Path(f"{TEMPORARY_BACKUP_PREFIX}_bedrock_update")
             download_path = temp_dir / "update.zip"
 
+            # Backup the world and server files before updating
+            self.log_print(LogLevel.INFO, "Creating offline backups of current world and server files before updating...")
+            if not (self.backup_world_offline(skip_pruning=True) and self._backup_server_files(skip_pruning=True)):
+                self.log_print(LogLevel.ERROR, "Failed to create backups before update.")
+                return "Failed to create backups before update."
+
             # Download the new server files
             self.log_print(LogLevel.INFO, f"Downloading update from {updateInfo.download_url}...")
             try:
@@ -748,12 +754,6 @@ class ServerAutomation:
                 self.log_print(LogLevel.ERROR, f"Failed to download update: {e}")
                 return "Failed to download update."
             self.log_print(LogLevel.INFO, "Download completed.")
-
-            # Backup the world and server files before updating
-            self.log_print(LogLevel.INFO, "Creating offline backups of current world and server files before updating...")
-            if not (self.backup_world_offline(skip_pruning=True) and self._backup_server_files(skip_pruning=True)):
-                self.log_print(LogLevel.ERROR, "Failed to create backups before update.")
-                return "Failed to create backups before update."
 
             # Extract the downloaded files to the server folder (overwrite existing files)
             extract_path = temp_dir / "extracted"
