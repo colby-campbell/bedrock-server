@@ -22,8 +22,9 @@ FAIL_PATTERN = r"A previous save has not been completed."
 SAVE_QUERY_TIMEOUT_SECONDS = 10
 WORLDS_FOLDER_NAME = "worlds"
 VERSION_REGEX = r"bedrock-server-([0-9.]+)\.zip"
-DOWNLOAD_TIMEOUT_SECONDS = 30
-DOWNLOAD_CHUNK_SIZE = 1024 * 64 # 64KB
+DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 10
+DOWNLOAD_READ_TIMEOUT_SECONDS = 300
+DOWNLOAD_CHUNK_SIZE = 1024 * 1024 # 1MB (in binary)
 SERVER_BACKUP_PREFIX = "server_backup"
 WORLDS_FOLDER_NAME = "worlds"
 
@@ -677,7 +678,7 @@ class ServerAutomation:
                 # Check if the file or any of its parent directories are protected
                 is_protected = any(
                     relative_path == Path(p) or Path(p) in relative_path.parents
-                    for p in self.config.update_protected_files
+                    for p in self.config.update_protected_paths
                 )
                 if is_protected:
                     self.log_print(LogLevel.INFO, f"Skipping protected file: {relative_path}")
@@ -738,12 +739,27 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, f"Downloading update from {updateInfo.download_url}...")
             try:
                 temp_dir.mkdir(parents=True, exist_ok=True)
-                with requests.get(updateInfo.download_url, stream=True, timeout=DOWNLOAD_TIMEOUT_SECONDS) as resp:
+                headers = {
+                    "User-Agent": "BedrockUpdater",
+                    "Accept": "*/*",
+                    "Accept-Encoding": "identity",  # Disable compression so Content-Length is accurate
+                }
+                with requests.get(updateInfo.download_url, headers=headers, stream=True, timeout=(DOWNLOAD_CONNECT_TIMEOUT_SECONDS, DOWNLOAD_READ_TIMEOUT_SECONDS)) as resp:
                     resp.raise_for_status()
                     with open(download_path, "wb") as f:
+                        total = int(resp.headers.get('Content-Length', 0))
+                        downloaded = 0
+                        last_logged = -1
                         for chunk in resp.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
                             if chunk:
                                 f.write(chunk)
+                                downloaded += len(chunk)
+                                if total:
+                                    percent = downloaded * 100 // total
+                                    # Log progress every 5% or on completion
+                                    if percent // 25 > last_logged // 25:
+                                        self.log_print(LogLevel.INFO, f"Download progress: {percent}% ({downloaded // DOWNLOAD_CHUNK_SIZE}MB / {total // DOWNLOAD_CHUNK_SIZE}MB)")
+                                        last_logged = percent
             except Exception as e:
                 # Clean temp if created
                 try:
