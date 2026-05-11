@@ -28,15 +28,6 @@ SERVER_BACKUP_PREFIX = "server_backup"
 WORLDS_FOLDER_NAME = "worlds"
 
 
-"""
-This will need to manage server automation tasks like
-- Update checks (like for new versions of the server software)
-
-
-Next to do:
-"""
-
-
 class ServerAutomation:
     def __init__(self, config, runner):
         self.config = config
@@ -83,12 +74,13 @@ class ServerAutomation:
 
 
     def handle_server_output(self, timestamp, line):
-        """Process server output lines for automation triggers.
+        """
+        Process server output lines for automation triggers.
         Args:
             timestamp (str): The timestamp of the output line.
             line (str): The output line from the server.
         """
-        # Scrape the line for the version number
+        # Scrape the line for the version number to use in update checks
         if (line.startswith("Version:")):
             self.current_version = line.split("Version:")[1].strip()
         self.logger.log(timestamp + line)
@@ -96,7 +88,8 @@ class ServerAutomation:
 
 
     def handle_unexpected_shutdown(self, timestamp, line):
-        """Handle unexpected server shutdowns.
+        """
+        Handle unexpected server shutdowns.
         Args:
             timestamp (str): The timestamp of the shutdown event.
             line (str): The output line indicating the shutdown.
@@ -111,7 +104,7 @@ class ServerAutomation:
         # If any of the timestamps are older than the CRASH_DETECTION_WINDOW_MINUTES minutes, remove them
         for time in self.recent_crashes:
             if time < crash_detection_window:
-                self.recent_crashes.pop
+                self.recent_crashes.pop()
         # If the length is larger than the crash limit, send an error and do not restart the server
         if len(self.recent_crashes) >= self.crash_limit:
             self.log_print(LogLevel.CRITICAL, "Repeated unexpected shutdowns detected. Crash limit exceeded. Server restart attempts halted until manual intervention.")
@@ -121,7 +114,7 @@ class ServerAutomation:
     
 
     def _scheduled_restart(self):
-        """Internal method to handle scheduled restarts."""
+        """Internal method to handle scheduled restarts. Ran in a separate thread."""
         while True:
             # Get current time and today's restart time
             now = datetime.now()
@@ -162,7 +155,8 @@ class ServerAutomation:
 
 
     def _prune_old_backups(self, backup_root: Path):
-        """Internal method to delete old backups based on the backup duration setting.
+        """
+        Internal method to delete old backups based on the backup duration setting.
         Args:
             backup_root (Path): The root directory where backups are stored.
         """
@@ -198,7 +192,8 @@ class ServerAutomation:
 
 
     def backup_world_offline(self, skip_pruning: bool = False):
-        """Perform a backup of the world when the server is offline.
+        """
+        Perform a backup of the world when the server is offline.
         Args:
             skip_pruning (bool): If True, skip pruning old backups after creating the backup.
         """
@@ -254,9 +249,10 @@ class ServerAutomation:
             return final_path
 
 
-    # TODO: should I give errors if something fails?
+    # TODO: set to private?
     def backup_world_online(self, skip_pruning: bool = False):
-        """Perform a backup of the world while the server remains online.
+        """
+        Perform a backup of the world while the server remains online.
         Args:
             skip_pruning (bool): Default is False, if True, skip pruning old backups after creating the backup.
         """
@@ -366,7 +362,7 @@ class ServerAutomation:
                 shutil.rmtree(dest_dir, ignore_errors=True)
                 final_path = dest_dir.with_suffix('.zip')
             except Exception as e:
-                self.log_print(LogLevel.WARN, f"Offline backup compression failed, keeping folder backup: {e}")
+                self.log_print(LogLevel.WARN, f"Online backup compression failed, keeping folder backup: {e}")
 
             self.log_print(LogLevel.INFO, f"Successfully completed online world backup: {final_path.name}")
 
@@ -502,7 +498,8 @@ class ServerAutomation:
 
 
     def switch_to_backup_world(self, backup_name):
-        """Switch the server's world to the specified backup.
+        """
+        Switch the server's world to the specified backup.
         Args:
             backup_name (str): The name of the backup to switch to.
         """
@@ -539,7 +536,11 @@ class ServerAutomation:
                 if backup_path.suffix == '.zip':
                     # Extract the zip archive if the backup is compressed
                     shutil.unpack_archive(backup_path, extract_dir=world_dir.parent)
-                    extracted_dir = world_dir.parent / backup_path.stem
+                    # The zip's internal folder uses the original name, so strip any "protected_" prefix
+                    stem = backup_path.stem
+                    if stem.startswith(PROTECTED_BACKUP_PREFIX + "_"):
+                        stem = stem[len(PROTECTED_BACKUP_PREFIX) + 1:]
+                    extracted_dir = world_dir.parent / stem
                     extracted_dir.rename(world_dir)
                 else:
                     # Copy the backup directory if it is not compressed
@@ -569,6 +570,8 @@ class ServerAutomation:
     def _backup_server_files(self, skip_pruning: bool = False):
         """
         Backup the server files specified in the config file before updating.
+        Args:
+            skip_pruning (bool): If True, skip pruning old backups after creating the backup.
         """
         # Use the runner's lock to ensure atomic operation
         with self.runner.lock():
@@ -647,10 +650,58 @@ class ServerAutomation:
             # Return the final backup path for further processing if needed
             return final_path
 
+    
+    def _extract_update_files(self, download_path, extract_path):
+        """
+        Docstring for _extract_update_files
+        Args:
+            download_path (Path): The path to the downloaded update zip file.
+            extract_path (Path): The path to where the files should be extracted.
+        """
+        # Unzip the downloaded files in the extract path
+        try:
+            self.log_print(LogLevel.INFO, "Extracting update files.")
+            shutil.unpack_archive(download_path, extract_path)
+        except Exception as e:
+            self.log_print(LogLevel.ERROR, f"Failed to extract update files: {e}")
+            return False
+        self.log_print(LogLevel.INFO, "Update files extracted successfully.")
+        # Copy the extracted files to the server folder, skipping protected paths
+        server_dir = Path(self.server_folder)
+        try:
+            for src in extract_path.rglob('*'):
+                if src.is_dir():
+                    continue
+                relative_path = src.relative_to(extract_path)
+
+                # Check if the file or any of its parent directories are protected
+                is_protected = any(
+                    relative_path == Path(p) or Path(p) in relative_path.parents
+                    for p in self.config.update_protected_files
+                )
+                if is_protected:
+                    self.log_print(LogLevel.INFO, f"Skipping protected file: {relative_path}")
+                    continue
+
+                dest = server_dir / relative_path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+        except Exception as e:
+            self.log_print(LogLevel.ERROR, f"Failed to copy update files to server folder: {e}")
+            return False
+
+        self.log_print(LogLevel.INFO, "Update files copied to server folder successfully.")
+        return True
+
+
 
     def update_server(self):
         """
         Update the Bedrock server to the latest version.
+        Uses:
+            _get_bedrock_update_info: to check for updates and get the download URL.
+            _backup_server_files: to backup server files before updating.
+            _extract_update_files: to extract the downloaded update files to the server folder.
         """
         updateInfo = get_bedrock_update_info(self.current_version, self.config.platform, VERSION_REGEX)
         if updateInfo.error:
@@ -667,10 +718,6 @@ class ServerAutomation:
             
             self.log_print(LogLevel.INFO, f"Updating server from version {self.current_version} to {updateInfo.latest_version}...")
 
-            # Backup the world before updating
-            self.log_print(LogLevel.INFO, "Creating offline backup of current world before updating...")
-            self.backup_world_offline(skip_pruning=True)
-
             # Prepare paths to download the backup
             temp_dir = Path(f"{TEMPORARY_BACKUP_PREFIX}_bedrock_update")
             download_path = temp_dir / "update.zip"
@@ -678,6 +725,7 @@ class ServerAutomation:
             # Download the new server files
             self.log_print(LogLevel.INFO, f"Downloading update from {updateInfo.download_url}...")
             try:
+                temp_dir.mkdir(parents=True, exist_ok=True)
                 with requests.get(updateInfo.download_url, stream=True, timeout=DOWNLOAD_TIMEOUT_SECONDS) as resp:
                     resp.raise_for_status()
                     with open(download_path, "wb") as f:
@@ -689,13 +737,30 @@ class ServerAutomation:
                 try:
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 except Exception:
-                    pass
+                    self.log_print(LogLevel.WARN, f"Failed to clean up temporary files after download failure: {temp_dir}")
                 self.log_print(LogLevel.ERROR, f"Failed to download update: {e}")
                 return "Failed to download update."
             self.log_print(LogLevel.INFO, "Download completed.")
 
-            # Backup current server files
-            self._backup_server_files()
+            # Backup the world and server files before updating
+            self.log_print(LogLevel.INFO, "Creating offline backups of current world and server files before updating...")
+            self.backup_world_offline(skip_pruning=True)
+            self._backup_server_files(skip_pruning=True)
 
             # Extract the downloaded files to the server folder (overwrite existing files)
-            self._extract_update_files(download_path)
+            extract_path = temp_dir / "extracted"
+            success = self._extract_update_files(download_path, extract_path)
+
+            # Clean up the downloaded zip file and temporary directory
+            self.log_print(LogLevel.INFO, "Cleaning up temporary files...")
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception as e:
+                self.log_print(LogLevel.WARN, f"Failed to clean up temporary files after update: {temp_dir}, error: {e}")
+
+            if not success:
+                return "Update failed during file extraction."
+
+            self.current_version = updateInfo.latest_version
+            self.log_print(LogLevel.INFO, f"Server updated successfully to version {updateInfo.latest_version}.")
+            return f"Server updated successfully to version {updateInfo.latest_version}."
