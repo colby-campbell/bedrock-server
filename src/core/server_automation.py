@@ -5,6 +5,7 @@ from pathlib import Path
 from time import sleep, strftime, time
 import threading
 import shutil
+import zipfile
 from collections import deque
 import re
 
@@ -652,46 +653,50 @@ class ServerAutomation:
             return final_path
 
     
-    def _extract_update_files(self, download_path, extract_path):
+    def _extract_update_files(self, download_path):
         """
-        Extract the downloaded update files to the server folder, skipping protected paths.
+        Extract the downloaded update zip directly into the server folder, skipping protected paths.
         Args:
             download_path (Path): The path to the downloaded update zip file.
-            extract_path (Path): The path to where the files should be extracted.
         """
-        # Unzip the downloaded files in the extract path
-        try:
-            self.log_print(LogLevel.INFO, "Extracting update files.")
-            shutil.unpack_archive(download_path, extract_path)
-        except Exception as e:
-            self.log_print(LogLevel.ERROR, f"Failed to extract update files: {e}")
-            return False
-        self.log_print(LogLevel.INFO, "Update files extracted successfully.")
-        # Copy the extracted files to the server folder, skipping protected paths
+        self.log_print(LogLevel.INFO, "Extracting update files to server folder...")
         server_dir = Path(self.server_folder)
         try:
-            for src in extract_path.rglob('*'):
-                if src.is_dir():
-                    continue
-                relative_path = src.relative_to(extract_path)
+            with zipfile.ZipFile(download_path, 'r') as zf:
+                # Grab all files in the zip
+                files = [x for x in zf.infolist() if not x.is_dir()]
+                total = len(files)
+                last_logged = -1
+                # For every file, check if it is protected before extracting, and log progress every 25%
+                for i, file in enumerate(files):
+                    relative_path = Path(file.filename)
 
-                # Check if the file or any of its parent directories are protected
-                is_protected = any(
-                    relative_path == Path(p) or Path(p) in relative_path.parents
-                    for p in self.config.update_protected_paths
-                )
-                if is_protected:
-                    self.log_print(LogLevel.INFO, f"Skipping protected file: {relative_path}")
-                    continue
+                    # Check if the file or any of its parent directories are protected
+                    is_protected = any(
+                        relative_path == Path(p) or Path(p) in relative_path.parents
+                        for p in self.config.update_protected_paths
+                    )
+                    if is_protected:
+                        self.log_print(LogLevel.INFO, f"Skipping protected file: {relative_path}")
+                        continue
 
-                dest = server_dir / relative_path
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dest)
+                    dest = server_dir / relative_path
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(file) as src, open(dest, 'wb') as dst:
+                        shutil.copyfileobj(src, dst)
+
+                    # Log progress every 25%
+                    percent = (i + 1) * 100 // total
+                    if percent // 25 > last_logged // 25 and percent != 100:
+                        self.log_print(LogLevel.INFO, f"Extracting update files: {percent}% ({i + 1}/{total} files)")
+                        last_logged = percent
+                # Log completion at 100%
+                self.log_print(LogLevel.INFO, f"Extracting update files: 100% ({total}/{total} files)")
         except Exception as e:
-            self.log_print(LogLevel.ERROR, f"Failed to copy update files to server folder: {e}")
+            self.log_print(LogLevel.CRITICAL, f"Failed to extract update files, server may be in a non-functional state: {e}")
             return False
 
-        self.log_print(LogLevel.INFO, "Update files copied to server folder successfully.")
+        self.log_print(LogLevel.INFO, "Update files extracted successfully.")
         return True
 
 
@@ -756,9 +761,9 @@ class ServerAutomation:
                                 downloaded += len(chunk)
                                 if total:
                                     percent = downloaded * 100 // total
-                                    # Log progress every 5% or on completion
+                                    # Log progress every 25% or on completion
                                     if percent // 25 > last_logged // 25:
-                                        self.log_print(LogLevel.INFO, f"Download progress: {percent}% ({downloaded // DOWNLOAD_CHUNK_SIZE}MB / {total // DOWNLOAD_CHUNK_SIZE}MB)")
+                                        self.log_print(LogLevel.INFO, f"Downloading update zip: {percent}% ({downloaded // DOWNLOAD_CHUNK_SIZE}MB / {total // DOWNLOAD_CHUNK_SIZE}MB)")
                                         last_logged = percent
             except Exception as e:
                 # Clean temp if created
@@ -771,8 +776,7 @@ class ServerAutomation:
             self.log_print(LogLevel.INFO, "Download completed.")
 
             # Extract the downloaded files to the server folder (overwrite existing files)
-            extract_path = temp_dir / "extracted"
-            success = self._extract_update_files(download_path, extract_path)
+            success = self._extract_update_files(download_path)
 
             # Clean up the downloaded zip file and temporary directory
             self.log_print(LogLevel.INFO, "Cleaning up temporary files...")
