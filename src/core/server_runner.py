@@ -1,9 +1,11 @@
 import sys
-from utils import LineBroadcaster, SignalBroadcaster, process_line, get_prefix, LogLevel, Platform
+from utils import LineBroadcaster, SignalBroadcaster, process_line, get_prefix, LogLevel, Platform, create_job_object, close_job_object
 from contextlib import contextmanager
 import subprocess
 import threading
 import os
+import ctypes
+import signal
 from .server_config import ServerConfig
 
 
@@ -23,6 +25,8 @@ class ServerRunner:
         self.unexpected_shutdown_broadcaster = LineBroadcaster()
         self._stdout_thread = None
         self._expected_shutdown = False
+        # Windows Job Object handle, keeps bedrock_server tied to this process's lifetime
+        self._job = None
         # We are using a RLock instead of a regular Lock to allow nested locking within the same thread
         self._lock = threading.RLock()
 
@@ -65,7 +69,14 @@ class ServerRunner:
             executable_path = os.path.join(cwd, "bedrock_server" if self.platform == Platform.Linux else "bedrock_server.exe")
             if not os.path.isfile(executable_path):
                 raise FileNotFoundError(f"{executable_path}: server executable not found")
-            
+
+            # On Linux, instruct the kernel to send SIGTERM to bedrock_server if this process dies
+            preexec_fn = None
+            if self.platform == Platform.Linux:
+                def preexec_fn():
+                    # Load the C library and call prctl to set the parent death signal to SIGTERM
+                    ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)
+
             # Start the server process
             self.process = subprocess.Popen(
                 [executable_path],
@@ -75,8 +86,13 @@ class ServerRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
-                bufsize=1
+                bufsize=1,
+                preexec_fn=preexec_fn,
             )
+
+            # On Windows, bind bedrock_server to a Job Object so it is killed when this process exits
+            if self.platform == Platform.Windows:
+                self._job = create_job_object(int(self.process._handle))
 
             # Start a thread to read stdout
             self._stdout_thread = threading.Thread(target=self._read_stdout, daemon=True)
@@ -116,6 +132,10 @@ class ServerRunner:
         # If the shutdown was not expected, we alert all subscribers
         if not self._expected_shutdown:
             self.unexpected_shutdown_broadcaster.publish(get_prefix(LogLevel.ERROR), "The server has shut down unexpectedly.")
+        # Clean up the Windows Job Object if it exists
+        if self._job is not None:
+            close_job_object(self._job)
+            self._job = None
 
 
     def send_command(self, command):
@@ -132,8 +152,8 @@ class ServerRunner:
             # Send a command to the server's stdin and immediately flush it
             self.process.stdin.write(command + "\n")
             self.process.stdin.flush()
-    
-    
+
+
     def stop(self):
         """
         Gracefully stop the server by sending a stop command and waiting for the process to exit within the configured shutdown timeout. Forces kill if unable to stop gracefully.
@@ -157,7 +177,11 @@ class ServerRunner:
             # Clean up
             self.process = None
             self._stdout_thread = None
-    
+            # Clean up the Windows Job Object if it exists
+            if self._job is not None:
+                close_job_object(self._job)
+                self._job = None
+
 
     def restart(self):
         """

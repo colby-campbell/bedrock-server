@@ -4,6 +4,7 @@ from .format_helper import LogLevel, get_timestamp, get_spacing, get_prefix, pro
 from .broadcaster import LineBroadcaster, SignalBroadcaster
 from .platform import Platform
 from .bedrock_download_link_fetcher import UpdateInfo, get_bedrock_update_info
+from .windows_job import create_job_object, close_job_object
 
 __all__ = [
     'BroadcastHandler',
@@ -17,5 +18,7 @@ __all__ = [
     'SignalBroadcaster',
     'Platform',
     'UpdateInfo',
-    'get_bedrock_update_info'
+    'get_bedrock_update_info',
+    'create_job_object',
+    'close_job_object',
 ]
